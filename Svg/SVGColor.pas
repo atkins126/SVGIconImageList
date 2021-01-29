@@ -91,7 +91,9 @@ function DecodeSVGColorToInt(const S: string): Integer;
 var
   C: Integer;
   Percent: Boolean;
+  ColorFloat: Extended;
   Help: string;
+  LFormatSettings: TFormatSettings;
 begin
   Result := SVG_INHERIT_COLOR;
   Help := '0' + S;
@@ -101,23 +103,34 @@ begin
     Help := Copy(Help, 1, Length(Help) - 1);
     Percent := True;
   end;
-
   C := SVG_INHERIT_COLOR;
   if IsDecimal(Help) then
-    C := StrToInt(Help)
+  begin
+    C := StrToInt(Help);
+    if Percent then
+      C := Round(C * 2.55);
+  end
+  else if IsHex(Help) then
+  begin
+    C := StrToInt('$' + Help);
+    if Percent then
+      C := Round(C * 2.55);
+  end
   else
-    if IsHex(Help) then
-      C := StrToInt('$' + Help);
+  begin
+    LFormatSettings.DecimalSeparator := '.';
+    If TryStrToFloat(Help, ColorFloat, LFormatSettings) then
+    begin
+      if Percent then
+        C := Round(ColorFloat * 2.55)
+      else
+        C := Round(ColorFloat);
+    end;
+  end;
   if C = SVG_INHERIT_COLOR then
     Exit;
   if C > 255 then
     C := 255;
-  if Percent then
-  begin
-    if C > 100 then
-      C := 100;
-    C := Round(C * 2.55);
-  end;
   Result := C;
 end;
 

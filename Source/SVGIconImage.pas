@@ -2,7 +2,7 @@
 {                                                                              }
 {       SVG Image in TPicture: useful to show a Scalable Vector Graphic        }
 {                                                                              }
-{       Copyright (c) 2019-2020 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {                                                                              }
@@ -76,6 +76,7 @@ type
     procedure ImageListChange(Sender: TObject);
     procedure SetFixedColor(const Value: TColor);
     procedure SetGrayScale(const Value: Boolean);
+    function GetInheritedFixedColor: TColor;
   private
     function GetSVGText: string;
     procedure SetSVGText(const AValue: string);
@@ -89,7 +90,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure Clear;
-    function SVGIconItems: TSVGIconItems;
+    function SVGIconItem(const AImageIndex: Integer): TSVGIconItem;
     function Empty: Boolean;
     procedure LoadFromFile(const FileName: string);
     procedure LoadFromStream(Stream: TStream);
@@ -222,10 +223,28 @@ begin
   Empty := FSVG.IsEmpty;
 end;
 
+function TSVGIconImage.GetInheritedFixedColor: TColor;
+begin
+  Result := SVG_INHERIT_COLOR;
+  if not Assigned(FImageList) then
+    Exit;
+  if FImageList is TSVGIconImageListBase then
+  begin
+    if FImageIndex >= 0 then
+    begin
+      if FImageIndex < FImageList.Count then
+        Result := SVGIconItem(FImageIndex).FixedColor;
+      if Result <> SVG_INHERIT_COLOR then
+        exit;
+    end;
+    Result := TSVGIconImageListBase(FImageList).FixedColor;
+  end;
+end;
+
 function TSVGIconImage.GetSVGText: string;
 begin
   if not UsingSVGText then
-    Result := SVGIconItems.Items[FImageIndex].SVGText
+    Result := SVGIconItem(FImageIndex).SVGText
   else
     Result := FSVG.Source;
 end;
@@ -236,39 +255,76 @@ begin
     Invalidate;
 end;
 
-function TSVGIconImage.SVGIconItems: TSVGIconItems;
+function TSVGIconImage.SVGIconItem(const AImageIndex: Integer): TSVGIconItem;
+var
+  {$IFDEF D10_3+}
+  LVirtualImageList: TVirtualImageList;
+  LItem: TVirtualImageListItem;
+  {$ENDIF}
+  LSVGIconItems: TSVGIconItems;
 begin
   Result := nil;
   if FImageList is TSVGIconImageListBase then
-    Result := TSVGIconImageListBase(FImageList).SVGIconItems;
+  begin
+    LSVGIconItems := TSVGIconImageListBase(FImageList).SVGIconItems;
+    Result := LSVGIconItems[FImageIndex];
+  end;
   {$IFDEF D10_3+}
-  if (FImageList is TVirtualImageList) and
-    (TVirtualImageList(FImageList).ImageCollection is TSVGIconImageCollection) then
-    Result := TSVGIconImageCollection(TVirtualImageList(FImageList).ImageCollection).SVGIconItems;
+  if (FImageList is TVirtualImageList) then
+  begin
+    LVirtualImageList := TVirtualImageList(FImageList);
+    if LVirtualImageList.ImageCollection is TSVGIconImageCollection then
+    begin
+      LSVGIconItems := TSVGIconImageCollection(LVirtualImageList.ImageCollection).SVGIconItems;
+      LItem := LVirtualImageList.Images[FImageIndex];
+      if Assigned(LItem) then
+        Result := LSVGIconItems[LItem.Collectionindex];
+    end;
+  end;
   {$ENDIF}
 end;
 
 function TSVGIconImage.UsingSVGText: Boolean;
 begin
   Result := not (Assigned(FImageList) and (FImageIndex >= 0) and
-     (FImageIndex < FImagelist.Count));
+    (FImageIndex < FImageList.Count));
 end;
 
 procedure TSVGIconImage.Paint;
 var
   LSVG: ISVG;
+  LWidth, LHeight: Integer;
+  LOrigin: TPointF;
 begin
   if not UsingSVGText then
-    LSVG := SVGIconItems.Items[FImageIndex].SVG
+    LSVG := SVGIconItem(FImageIndex).SVG
+
   else
     LSVG := FSVG;
 
   if not LSVG.IsEmpty then
   begin
     LSVG.Opacity := FOpacity / 255;
-    LSVG.FixedColor := FFixedColor;
+    if FFixedColor <> SVG_INHERIT_COLOR then
+      LSVG.FixedColor := FFixedColor
+    else
+      LSVG.FixedColor := GetInheritedFixedColor;
     LSVG.GrayScale := FGrayScale;
-    LSVG.PaintTo(Canvas.Handle, TRectF.Create(TPointF.Create(0, 0), Width, Height), FProportional);
+    if FStretch or not Assigned(FImageList) then
+    begin
+      LWidth := Width;
+      LHeight := Height;
+      LOrigin := TPointF.Create(0, 0);
+    end
+    else
+    begin
+      LWidth := FImageList.Width;
+      LHeight := FImageList.Height;
+      LOrigin := TPointF.Create(
+        (Width - LWidth) div 2, ((Height - LHeight) div 2));
+    end;
+    LSVG.PaintTo(Canvas.Handle,
+      TRectF.Create(LOrigin, LWidth, LHeight), FProportional);
     LSVG.Opacity := 1;
   end;
 
@@ -290,6 +346,7 @@ begin
     FFileName := FileName;
   except
     Clear;
+    raise;
   end;
   CheckAutoSize;
   Repaint;
@@ -301,6 +358,8 @@ begin
     FFileName := '';
     FSVG.LoadFromStream(Stream);
   except
+    FSVG.Clear;
+    raise;
   end;
   CheckAutoSize;
   Repaint;
@@ -465,11 +524,7 @@ procedure TSVGGraphic.Assign(Source: TPersistent);
 begin
   if (Source is TSVGGraphic) then
   begin
-    try
-      //AssignSVG(TSVGGraphic(Source).FSVG);
-      FSVG := TSVGGraphic(Source).FSVG;
-    except
-    end;
+    FSVG := TSVGGraphic(Source).FSVG;
     Changed(Self);
   end;
 end;
@@ -593,10 +648,7 @@ end;
 
 procedure TSVGGraphic.LoadFromStream(Stream: TStream);
 begin
-  try
-    FSVG.LoadFromStream(Stream);
-  except
-  end;
+  FSVG.LoadFromStream(Stream);
   Changed(Self);
 end;
 

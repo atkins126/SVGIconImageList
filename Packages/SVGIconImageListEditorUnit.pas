@@ -2,7 +2,7 @@
 {                                                                              }
 {       SVGIconImageList Component Editor                                      }
 {                                                                              }
-{       Copyright (c) 2019-2020 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -75,10 +75,10 @@ type
     paClient: TPanel;
     SVGText: TMemo;
     SizeLabel: TLabel;
-    SizeSpinEdit: TSpinEdit;
+    SizeEdit: TEdit;
     WidthLabel: TLabel;
-    WidthSpinEdit: TSpinEdit;
-    HeightSpinEdit: TSpinEdit;
+    WidthEdit: TEdit;
+    HeightEdit: TEdit;
     HeightLabel: TLabel;
     BottomPanel: TPanel;
     ApplyButton: TButton;
@@ -143,9 +143,9 @@ type
     procedure ImageViewDragDrop(Sender, Source: TObject; X, Y: Integer);
     procedure ReplaceButtonClick(Sender: TObject);
     procedure HelpButtonClick(Sender: TObject);
-    procedure SizeSpinEditChange(Sender: TObject);
-    procedure WidthSpinEditChange(Sender: TObject);
-    procedure HeightSpinEditChange(Sender: TObject);
+    procedure SizeEditChange(Sender: TObject);
+    procedure WidthEditChange(Sender: TObject);
+    procedure HeightEditChange(Sender: TObject);
     procedure OpacitySpinEditChange(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure NewButtonClick(Sender: TObject);
@@ -169,6 +169,8 @@ type
     FOpenDialog: TOpenPictureDialogSvg;
     FSelectedCategory: string;
     FSourceList, FEditingList: TSVGIconImageList;
+    FImageCollection: TSVGIconImageCollection;
+    FSVGIconVirtualImageList: TSVGIconVirtualImageList;
     FTotIconsLabel: string;
     FUpdating: Boolean;
     FChanged: Boolean;
@@ -177,6 +179,8 @@ type
     procedure BuildList(Selected: Integer);
     procedure UpdateCategories;
     procedure Apply;
+    procedure ApplyToImageCollection;
+    procedure ApplyToSVGIconVirtualImageList;
     procedure UpdateGUI;
     function SelectedIcon: TSVGIconItem;
     procedure UpdateSizeGUI;
@@ -261,6 +265,7 @@ begin
     try
       Screen.Cursor := crHourglass;
       try
+        FSVGIconVirtualImageList := AImageList;
         FSourceList := TSVGIconImageList.Create(LEditor);
         FSourceList.Assign(AImageList);
         FEditingList.Assign(AImageList);
@@ -273,8 +278,7 @@ begin
       begin
         Screen.Cursor := crHourglass;
         try
-          AImageList.ImageCollection.SVGIconItems.Assign(LEditor.FEditingList.SVGIconItems);
-          AImageList.Assign(LEditor.FEditingList);
+          ApplyToSVGIconVirtualImageList;
         finally
           Screen.Cursor := crDefault;
         end;
@@ -297,6 +301,7 @@ begin
     try
       Screen.Cursor := crHourglass;
       try
+        FImageCollection := AImageCollection;
         FSourceList := TSVGIconImageList.Create(LEditor);
         FSourceList.SVGIconItems.Assign(AImageCollection.SVGIconItems);
         FSourceList.Size := 64; //Force 64 pixel size for image collection icons
@@ -315,10 +320,7 @@ begin
       begin
         Screen.Cursor := crHourglass;
         try
-          AImageCollection.SVGIconItems.Assign(LEditor.FEditingList.SVGIconItems);
-          AImageCollection.GrayScale := GrayScaleCheckBox.Checked;
-          AImageCollection.FixedColor := FixedColorComboBox.Selected;
-          AImageCollection.AntiAliasColor := AntialiasColorComboBox.Selected;
+          ApplyToImageCollection;
         finally
           Screen.Cursor := crDefault;
         end;
@@ -329,23 +331,66 @@ begin
       Free;
     end;
   end;
-
 end;
-
 
 { TSVGIconImageListEditor }
 
 procedure TSVGIconImageListEditor.UpdateSizeGUI;
+var
+  LScale: double;
+  LIconPanelSize, LIconWidth, LIconHeight: Integer;
 begin
-  SizeSpinEdit.Value := FEditingList.Size;
-  WidthSpinEdit.Value := FEditingList.Width;
-  HeightSpinEdit.Value := FEditingList.Height;
+  FUpdating := True;
+  try
+    Screen.Cursor := crHourGlass;
+    SizeEdit.Text := IntToStr(FEditingList.Size);
+    WidthEdit.Text := IntToStr(FEditingList.Width);
+    HeightEdit.Text := IntToStr(FEditingList.Height);
+    LIconPanelSize := IconPanel.Height - (IconPanel.BorderWidth * 2);
+    if FEditingList.Width > FEditingList.Height then
+    begin
+      LIconWidth := LIconPanelSize;
+      LIconHeight := Round(LIconWidth * FEditingList.Height / FEditingList.Width);
+    end
+    else if FEditingList.Width < FEditingList.Height then
+    begin
+      LIconHeight := LIconPanelSize;
+      LIconWidth := Round(LIconHeight * FEditingList.Width / FEditingList.Height);
+    end
+    else
+    begin
+      LIconWidth := LIconPanelSize;
+      LIconHeight := LIconPanelSize;
+    end;
+    Iconimage.Margins.SetBounds(
+      (LIconPanelSize-LIconWidth) div 2,
+      (LIconPanelSize-LIconHeight) div 2,
+      (LIconPanelSize-LIconWidth) div 2,
+      (LIconPanelSize-LIconHeight) div 2);
+  finally
+    FUpdating := False;
+    Screen.Cursor := crDefault;
+  end;
 end;
 
 procedure TSVGIconImageListEditor.ApplyButtonClick(Sender: TObject);
 begin
   Apply;
   UpdateGUI;
+end;
+
+procedure TSVGIconImageListEditor.ApplyToImageCollection;
+begin
+  FImageCollection.SVGIconItems.Assign(FEditingList.SVGIconItems);
+  FImageCollection.GrayScale := GrayScaleCheckBox.Checked;
+  FImageCollection.FixedColor := FixedColorComboBox.Selected;
+  FImageCollection.AntiAliasColor := AntialiasColorComboBox.Selected;
+end;
+
+procedure TSVGIconImageListEditor.ApplyToSVGIconVirtualImageList;
+begin
+  FSVGIconVirtualImageList.ImageCollection.SVGIconItems.Assign(FEditingList.SVGIconItems);
+  FSVGIconVirtualImageList.Assign(FEditingList);
 end;
 
 procedure TSVGIconImageListEditor.AddButtonClick(Sender: TObject);
@@ -407,6 +452,10 @@ begin
     SetCategoriesButton.Enabled := LIsItemSelected;
     ApplyButton.Enabled := FChanged;
     NameEdit.Enabled := LIsItemSelected;
+    CategoryEdit.Enabled := LIsItemSelected;
+    FixedColorItemComboBox.Enabled := LIsItemSelected;
+    GrayScaleItemCheckBox.Enabled := LIsItemSelected;
+    IconIndexEdit.Enabled := LIsItemSelected;
     SVGText.Enabled := LIsItemSelected;
     ImageListGroup.Caption := Format(FTotIconsLabel, [FEditingList.Count]);
     GrayScaleCheckBox.Checked := SVGIconImageList.GrayScale;
@@ -416,6 +465,9 @@ begin
     if LIsItemSelected then
     begin
       IconImage.ImageIndex := SelectedIcon.Index;
+      IconImage.Opacity := SVGIconImageList.Opacity;
+      IconImage.FixedColor := SelectedIcon.FixedColor;
+      IconImage.GrayScale := SVGIconImageList.GrayScale or SelectedIcon.GrayScale;
       NameEdit.Text := LIconItem.Name;
       CategoryEdit.Text := LIconItem.Category;
       IconIndexEdit.Text := LIconItem.Index.ToString;
@@ -429,16 +481,20 @@ begin
       ItemGroupBox.Caption := '';
       NameEdit.Text := '';
       SVGText.Lines.Text := '';
+      CategoryEdit.Text := '';
+      FixedColorItemComboBox.Selected := clDefault;
+      GrayScaleItemCheckBox.Checked := False;
+      IconIndexEdit.Text := '';
     end;
   finally
     FUpdating := False;
   end;
 end;
 
-procedure TSVGIconImageListEditor.WidthSpinEditChange(Sender: TObject);
+procedure TSVGIconImageListEditor.WidthEditChange(Sender: TObject);
 begin
   if FUpdating then Exit;
-  FEditingList.Width := WidthSpinEdit.Value;
+  FEditingList.Width := StrToInt(WidthEdit.Text);
   UpdateSizeGUI;
 end;
 
@@ -611,10 +667,10 @@ begin
   end;
 end;
 
-procedure TSVGIconImageListEditor.SizeSpinEditChange(Sender: TObject);
+procedure TSVGIconImageListEditor.SizeEditChange(Sender: TObject);
 begin
   if FUpdating then Exit;
-  FEditingList.Size := SizeSpinEdit.Value;
+  FEditingList.Size := StrToInt(SizeEdit.Text);
   UpdateSizeGUI;
 end;
 
@@ -809,14 +865,14 @@ begin
     Exit;
   Screen.Cursor := crHourGlass;
   try
-    FSourceList.BeginUpdate;
-    Try
+    if Assigned(FImageCollection) then
+      ApplyToImageCollection
+    else if Assigned(FSVGIconVirtualImageList) then
+      ApplyToSVGIconVirtualImageList
+    else
       FSourceList.Assign(FEditingList);
-      FChanged := False;
-      FModified := True;
-    Finally
-      FSourceList.EndUpdate;
-    End;
+    FChanged := False;
+    FModified := True;
   finally
     Screen.Cursor := crDefault;
   end;
@@ -953,10 +1009,10 @@ begin
   UpdateGUI;
 end;
 
-procedure TSVGIconImageListEditor.HeightSpinEditChange(Sender: TObject);
+procedure TSVGIconImageListEditor.HeightEditChange(Sender: TObject);
 begin
   if FUpdating then Exit;
-  FEditingList.Height := HeightSpinEdit.Value;
+  FEditingList.Height := StrToInt(HeightEdit.Text);
   UpdateSizeGUI;
 end;
 

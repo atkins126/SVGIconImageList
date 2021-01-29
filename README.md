@@ -2,7 +2,7 @@
 
 ## Three engines to render SVG (GDI+, Direct2D or Cairo) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
 
-### Actual official version 2.2.0 (VCL+FMX)
+### Actual official version 2.2.4 (VCL+FMX)
 
 | Component | Description |
 | - | - |
@@ -25,19 +25,21 @@ There are three implementation: the "Delphi one" based on Martin's work which is
 
 ## Performance comparison
 
-This table shows the performance of the three rendering engines tested with SVGExplorer, using a significant amount of icons from different sets, rendered at 48x48 pixels.
+This table shows the performance of the three rendering engines tested with SVGExplorer, using a significant amount of icons from different sets, rendered at 32x32 pixels.
 
-Count | Icon set        |     D2D |   Cairo |    TSVG |  D2D | Cairo | TSVG |
-  --: | :--             |     --: |     --: |     --: |  --: |   --: |  --: |
- 996  | Font-Awesome    |  1469ms |  1218ms |  1470ms | 121% |  100% | 121% |
- 655  | Papirus         |  1219ms |  1656ms |  1890ms | 100% |  136% | 155% |
-5366  | Material-Design | 12016ms |  9594ms | 10531ms | 125% |  100% | 110% |
+Count | Icon set        |    TSVG |     D2D |   Cairo | TSVG |  D2D | Cairo |
+  --: | :--             |     --: |     --: |     --: |  --: |  --: |   --: |
+ 997  | Font-Awesome    |  1219ms |  1093ms |  2250ms | 111% | 100% |  205% |
+ 655  | Papirus         |   812ms |  1078ms |  3594ms | 100% | 132% |  442% |
+5366  | Material-Design |  5953ms |  8922ms |  9156ms | 100% | 149% |  153% |
 
-As you can see, the three engines perform differently depending on the icons and their complexity. There's no clear favourite.
+As you can see, the three engines perform differently depending on the icons and their complexity, but the native TSVG implementation is the best implementation, thank's to many performances changes to pascal code!
 
-### Available from Delphi XE6 to Delphi 10.4
+### Available from Delphi XE6 to Delphi 10.4 (32bit and 64bit platforms)
 
 ![Delphi 10.4 Sydney Support](/Demo/Images/SupportingDelphi.jpg)
+
+Related links: https://www.embarcadero.com/ - https://learndelphi.org/
 
 **Sample image of VCL version**
 ![https://github.com/EtheaDev/SVGIconImageList/blob/master/Demo/Images/Sample.jpg](https://github.com/EtheaDev/SVGIconImageList/blob/master/Demo/Images/Sample.jpg)
@@ -57,8 +59,27 @@ The [SVG Icon Explorer](https://github.com/EtheaDev/SVGIconImageList/wiki/SVGIco
 Follow the [guide in Wiki section](https://github.com/EtheaDev/SVGIconImageList/wiki) to known how to use those components to modernize your Delphi VCL or FMX Windows applications scalable, colored and beautiful with few lines of code.
 
 ### RELEASE NOTES
+23 Jan 2021: version 2.2.4 (VCL+FMX)
+- Fixed #156 Stretch for SVGIconImage
+- Fixed #157 SVGIconImage gets correct image from VirtualImageList
 
-23 Sep 2020: versoin 2.2.0 (VCL+FMX)
+17 Jan 2021: version 2.2.3 (VCL+FMX)
+- Fixed #151 Antialiasing problems
+- Fixed settings of different Width and Height into editor
+- Fixed preview of icon with different Height and Width into editor
+
+24 Dec 2020: version 2.2.2 (VCL+FMX)
+- Added Width, Height and Zoom property for FMX components
+- Redesigned FMX component editor
+- Fixed VCL component editor
+
+08 Dec 2020: version 2.2.1 (VCL+FMX)
+- Added 64bit platforms for packages
+- Minor fixes (empty except blocks)
+- Fixed TSVGIconImage inherited color
+- Fixed repaint for FMX version
+
+23 Sep 2020: version 2.2.0 (VCL+FMX)
 - Added "Cairo" SVG Engine
 - Added AntialiasColor to perfect antialias effect
 - Added ImageIndex property editor for SVGIconImage

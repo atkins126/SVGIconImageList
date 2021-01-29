@@ -3,7 +3,7 @@
 {       SVGIconImageList: An extended ImageList for Delphi/VCL                 }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2020 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -109,6 +109,10 @@ type
 implementation
 
 uses
+  {$IFDEF IgnoreAntiAliasedColor}
+  Winapi.GDIPAPI,
+  Winapi.GDIPOBJ,
+  {$ENDIF}
   System.SysUtils,
   VCL.Controls,
   VCL.Themes,
@@ -163,6 +167,21 @@ end;
 function TSVGIconItem.GetBitmap(const AWidth, AHeight: Integer;
   const AFixedColor: TColor; const AOpacity: Byte;
   const AGrayScale: Boolean; const AAntiAliasColor: TColor = clBtnFace): TBitmap;
+
+  {$IFDEF IgnoreAntiAliasedColor}
+  procedure MakeTransparent(DC: THandle);
+  var
+    Graphics: TGPGraphics;
+  begin
+    Graphics := TGPGraphics.Create(DC);
+    try
+      Graphics.Clear(aclTransparent);
+    finally
+      Graphics.Free;
+    end;
+  end;
+  {$ENDIF}
+
 var
   LAntiAliasColor: TColor;
 begin
@@ -189,7 +208,9 @@ begin
   else
     Result.Canvas.Brush.Color := ColorToRGB(LAntiAliasColor);
   Result.SetSize(AWidth, AHeight);
-
+  {$IFDEF IgnoreAntiAliasedColor}
+  MakeTransparent(Result.Canvas.Handle);
+  {$ENDIF}
   FSVG.PaintTo(Result.Canvas.Handle, TRectF.Create(0, 0, AWidth, AHeight));
 end;
 

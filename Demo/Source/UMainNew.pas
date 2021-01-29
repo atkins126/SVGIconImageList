@@ -235,7 +235,8 @@ begin
   TStringList(SelectThemeRadioGroup.Items).Sort;
   SelectThemeRadioGroup.OnClick := nil;
   try
-    SelectThemeRadioGroup.ItemIndex := SelectThemeRadioGroup.Items.IndexOf({$IFDEF D10_1+}'Windows10'{$ELSE}'Windows'{$ENDIF});
+    SelectThemeRadioGroup.ItemIndex :=
+      SelectThemeRadioGroup.Items.IndexOf(TStyleManager.ActiveStyle.Name);
   finally
     SelectThemeRadioGroup.OnClick := SelectThemeRadioGroupClick;
   end;
@@ -369,7 +370,7 @@ begin
   for I := 0 to TreeView.Items.Count - 1 do
   begin
     LItem := TreeView.Items[I];
-    if ImageDataModule.SVGIconImageCollection.Count > LItem.ImageIndex then
+    if VirtualImageList.Count > LItem.ImageIndex then
     begin
       LItem.Text := VirtualImageList.Images[LItem.ImageIndex].Name;
     end
