@@ -158,6 +158,7 @@ begin
       //so the changes are affected to all forms opened!
       (VirtualImageList.ImageCollection as TSVGIconImageCollection).ApplyFixedColorToRootOnly :=
         ApplyToRootOnlyCheckBox.Checked;
+      SVGIconImage.ApplyFixedColorToRootOnly := ApplyToRootOnlyCheckBox.Checked;
       UpdateGUI;
     end;
   finally
@@ -247,9 +248,6 @@ begin
   {$IFDEF HiDPISupport}
   OnAfterMonitorDpiChanged := FormAfterMonitorDpiChanged;
   {$ENDIF}
-
-  //Increase performance during drawing of SVG Image
-  SvgIconImage.DoubleBuffered := True;
 
   //Build available VCL Styles
   SelectThemeRadioGroup.Items.Clear;

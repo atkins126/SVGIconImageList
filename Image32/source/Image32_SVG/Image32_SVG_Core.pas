@@ -3,7 +3,7 @@ unit Image32_SVG_Core;
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
 * Version   :  2.26                                                            *
-* Date      :  9 July 2021                                                     *
+* Date      :  11 July 2021                                                    *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2019-2021                                         *
 *                                                                              *
@@ -265,6 +265,8 @@ type
   function HtmlDecode(const html: ansiString): ansistring;
 
   function GetXmlEncoding(memory: Pointer; len: integer): TSvgEncoding;
+  function ClampRange(val, min, max: double): double;
+  procedure AssignSVGColorList(const ATargetList: TStrings);
 
 {$IF COMPILERVERSION < 17}
 type
@@ -305,6 +307,20 @@ var
 
 //------------------------------------------------------------------------------
 // Miscellaneous functions ...
+//------------------------------------------------------------------------------
+procedure AssignSVGColorList(const ATargetList: TStrings);
+begin
+  ATargetList.Assign(ColorConstList);
+end;
+//------------------------------------------------------------------------------
+
+function ClampRange(val, min, max: double): double;
+  {$IFDEF INLINE} inline; {$ENDIF}
+begin
+  if val <= min then Result := min
+  else if val >= max then Result := max
+  else Result := val;
+end;
 //------------------------------------------------------------------------------
 
 {$IF COMPILERVERSION < 17}

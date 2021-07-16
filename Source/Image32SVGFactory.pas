@@ -26,12 +26,12 @@ Uses
   System.UITypes,
   System.SysUtils,
   System.Classes,
-  Image32,
-  Image32_SVG_Core,
-  Image32_SVG_Reader,
-  Image32_SVG_Writer,
-  Image32_Ttf
-  ;
+  Image32,             //Warning: from version 2.3 the default rendering engine is Image32
+  Image32_SVG_Core,    //because is the best engine available with SVGIconImageList.
+  Image32_SVG_Reader,  //If you don't want to use it change SVGIconImageList.inc
+  Image32_SVG_Writer,  //Otherwise you must add two search path:
+  Image32_Ttf          //- SVGIconImageList\Image32\Source
+  ;                    //- SVGIconImageList\Image32\Source\Image32_SVG
 
 resourcestring
   D2D_ERROR_NOT_AVAILABLE    = 'Windows SVG support is not available';
@@ -159,13 +159,16 @@ end;
 
 function TImage32SVG.IsEmpty: Boolean;
 begin
-  if FImage32 = nil then Exit(True);
-  Result := FImage32.IsEmpty;
+  Result := fSvgReader.IsEmpty;
 end;
 
 procedure TImage32SVG.LoadFromSource;
 begin
-  fSvgReader.LoadFromString(FSource);
+  if FSource <> '' then
+  begin
+    if not fSvgReader.LoadFromString(FSource) then
+      raise Exception.Create('Error parsing SVG');
+  end;
 end;
 
 procedure TImage32SVG.LoadFromStream(Stream: TStream);
@@ -178,20 +181,55 @@ begin
   // Restore Position
   Stream.Position := OldPos;
   // Now create the SVG
-  FImage32.LoadFromStream(Stream);
+  fSvgReader.LoadFromStream(Stream);
 end;
 
 procedure TImage32SVG.PaintTo(DC: HDC; R: TRectF; KeepAspectRatio: Boolean);
+var
+  LMaxSize: Integer;
+  dx,dy: double;
+  LSourceRect: TRect;
+  LDestRect: TRect;
 begin
-  FImage32.SetSize(Round(R.Width), Round(R.Height));
-  FsvgReader.DrawImage(FImage32, true);
+  //Define Image32 output size
+  if not KeepAspectRatio then
+    FImage32.SetSize(Round(R.Width+R.Height), Round(R.Width+R.Height))
+  else
+    FImage32.SetSize(Round(R.Width), Round(R.Height));
+
+  //Draw SVG image to Image32 (scaled to R and with preserved aspect ratio)
+  FsvgReader.DrawImage(FImage32, True);
+  dx := (R.Width - FImage32.Width) *0.5;
+  dy := (R.Height - FImage32.Height) *0.5;
+
+  //apply GrayScale and FixedColor to Image32
   if FGrayScale then
     FImage32.Grayscale
-  else if FFixedColor <> TColors.SysDefault then
-    FImage32.SetRGB(Color32(FFixedColor));
+  else if (FFixedColor <> TColors.SysDefault) then
+  begin
+    if FApplyFixedColorToRootOnly then
+    begin
+      fSvgReader.RootElement.SetFillColor(Color32(FFixedColor));
+      with fSvgReader.RootElement.DrawData do
+        if (strokeColor <> clInvalid) and (strokeColor <> clNone32) then
+          fSvgReader.RootElement.SetStrokeColor(Color32(FFixedColor));
+    end
+    else
+      FImage32.SetRGB(Color32(FFixedColor));
+  end;
+
+  //Opacity applyed to Image32
   if FOpacity <> 1.0 then
     FImage32.ReduceOpacity(Round(FOpacity * 255));
-  FImage32.CopyToDc(DC, 0, 0, True);
+
+  if not KeepAspectRatio then
+  begin
+    LSourceRect := TRect.Create(0, 0, FImage32.Width, FImage32.Height);
+    LDestRect := TRect.Create(Round(R.Left), Round(R.Top), Round(R.Right), Round(R.Bottom));
+    FImage32.CopyToDc(LSourceRect, LDestRect, DC, True);
+  end
+  else
+    FImage32.CopyToDc(DC, Round(R.Left + dx), Round(R.Top + dy), True);
 end;
 
 procedure TImage32SVG.SaveToFile(const FileName: string);
@@ -245,17 +283,6 @@ begin
   FGrayScale := False;
 end;
 
-// Converts any color to grayscale
-function GrayScaleColor(Color : TD2D1ColorF) : TD2D1ColorF;
-var
-  LGray : Single;
-begin
-  // get the luminance according to https://www.w3.org/TR/AERT/#color-contrast
-  LGray  := 0.299 * Color.R + 0.587 * Color.G + 0.114 * Color.B;
-  // set the result to the new grayscale color including the alpha info
-  Result := D2D1ColorF(LGray, LGray, LGray, Color.A);
-end;
-
 procedure TImage32SVG.SetGrayScale(const IsGrayScale: Boolean);
 begin
   if IsGrayScale = FGrayScale then Exit;
@@ -305,5 +332,9 @@ function GetImage32SVGFactory: ISVGFactory;
 begin
   Result := TImage32SVGFactory.Create;
 end;
+
+initialization
+  FontManager.Load('Arial');
+  FontManager.Load('Times New Roman');
 
 end.

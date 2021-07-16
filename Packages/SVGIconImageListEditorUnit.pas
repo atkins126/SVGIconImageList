@@ -62,6 +62,8 @@ resourcestring
   FILES_SAVED = '%d File(s) saved into "%s" folder';
 type
   TOpenPictureDialogSvg = class(TOpenPictureDialog)
+  protected
+    procedure DoSelectionChange; override;
   public
     function Execute(ParentWnd: HWND): Boolean; override;
   end;
@@ -885,7 +887,6 @@ begin
   FOpenDialog.Filter := 'Scalable Vector Graphics (*.svg)|*.svg';
   FOpenDialog.Options := [ofHideReadOnly, ofAllowMultiSelect, ofPathMustExist, ofFileMustExist, ofEnableSizing];
   ImageView.LargeImages := FEditingList;
-  IconImage.DoubleBuffered := True;
   IconImage.ImageList := FEditingList;
   FTotIconsLabel := ImageListGroup.Caption;
   FChanged := False;
@@ -1076,6 +1077,12 @@ function TOpenPictureDialogSvg.Execute(ParentWnd: HWND): Boolean;
 begin
   Template := 'DLGTEMPLATE';
   Result := DoExecute(@GetOpenFileName, ParentWnd);
+end;
+
+procedure TOpenPictureDialogSvg.DoSelectionChange;
+begin
+  ImageCtrl.Picture := nil;
+  inherited;
 end;
 
 initialization

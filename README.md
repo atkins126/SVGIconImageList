@@ -1,6 +1,6 @@
 ﻿# SVGIconImageList [![License](https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## Four engines to render SVG (Delphi TSVG, Delphi Image32, Direct2D wrapper or Cairo wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
+## Four engines to render SVG (Delphi Image32, Delphi TSVG, Direct2D wrapper or Cairo wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
 
 ### Actual official version 2.3.0 (VCL+FMX)
 
@@ -25,27 +25,29 @@ From D10.3 version, the **TSVGIconImageCollection** inherits from TCustomImageCo
 
 There are four implementation: 
 
-- Delphi TSVG: the first native Delphi code, based on Martin's work which is using GDI+, 
+- Delphi Image32 (default): the new implementatio, using Image32 library by Angus Johnson
 
-- Delphi Image32: the new implementatio, using Image32 library by Angus Johnson
+- Delphi TSVG: the first native Delphi code, based on Martin's work which is using GDI+
 
 - A wrapper to the native Windows Direct2D implementation 
 
 - A wrapper to the "Cairo" library (written in C)
 
-You can read more details [here.](https://github.com/EtheaDev/SVGIconImageList/wiki/Choice-of-Factories-(Direct-2D-or-GDI-))
+You can read more details [here.](https://github.com/EtheaDev/SVGIconImageList/wiki/Choice-of-Factories)
 
 ## Performance comparison
 
-This table shows the performance of the three rendering engines tested with SVGExplorer, using a significant amount of icons from different sets, rendered at 32x32 pixels.
+This table shows the performance of the four rendering engines tested with SVGExplorer, using a significant amount of icons from different sets, rendered at 32x32 pixels.
 
 Count | Icon set        |    TSVG | Image32 |    D2D |   Cairo | 
   --: | :--             |     --: |     --: |    --: |     --: | 
  997  | Font-Awesome    |   453ms |   453ms |  672ms |   516ms | 
- 654  | Papirus         |   547ms |   781ms |  547ms |   891ms | 
+ 654  | Papirus         |   547ms |   781ms<sup>(1)</sup> |  547ms |   891ms<sup>(1)</sup> | 
 5366  | Material-Design |  5031ms |  5094ms | 6531ms |  5828ms | 
 
 As you can see, the four engines perform differently depending on the icons and their complexity, but the two native Delphi implementation are the best.
+
+<sup>(1)</sup>Notice that Image32 and Cairo are the only engines capable of rendering blur effect (that is always slow to calculate): this is the reason of "slow" performance to render Papirus icons that contains blur effect.
 
 ### Available from Delphi XE6 to Delphi 10.4 (32bit and 64bit platforms)
 
