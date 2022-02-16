@@ -3,7 +3,7 @@
 {       SVGIconImageList: An extended ImageList for Delphi/FMX                 }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {                                                                              }
@@ -100,6 +100,11 @@ type
     constructor Create(AOwner: TPersistent); overload;
   end;
 
+  {$IF CompilerVersion > 34}
+  [ComponentPlatforms(pidWin32 or pidWin64 or pidOSX32 or pidiOSSimulator32 or pidiOSDevice32 or pidAndroidArm32)]
+  {$ELSE}
+  [ComponentPlatforms(pidWin32 or pidWin64 or pidOSX32 or pidiOSSimulator32 or pidiOSDevice32 or pidAndroid32Arm)]
+  {$ENDIF}
   TSVGIconImage = class(TImage)
   private
     FZoom: Integer;
@@ -107,14 +112,26 @@ type
     procedure SetBitmapZoom(const AValue: Integer);
     procedure SetIconSize(const AWidth, AHeight: Single;
       const AZoom: Integer);
+    procedure SetFixedColor(AColor: TAlphaColor);
+    function GetFixedColor: TAlphaColor;
+    procedure SetGrayScale(AValue: Boolean);
+    function GetGrayScale: Boolean;
+    procedure SetSVGText(AValue: string);
+    function GetSVGText: string;
   protected
     function CreateMultiResBitmap: TFixedMultiResBitmap; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure SetBounds(X, Y, AWidth, AHeight: Single); override;
+    procedure LoadFromFile(const AFileName: string);
+    procedure SaveToFile(const AFileName: string);
+    function GetFixedBitmap: TSVGIconFixedBitmapItem;
   published
     property BitmapZoom: Integer read FZoom write SetBitmapZoom default ZOOM_DEFAULT;
+    property FixedColor: TAlphaColor read GetFixedColor write SetFixedColor;
+    property GrayScale: Boolean read GetGrayScale write SetGrayScale;
+    property SVGText: string read GetSVGText write SetSVGText;
   end;
 
 implementation
@@ -246,7 +263,6 @@ begin
   FIconName := AValue;
 end;
 
-
 procedure TSVGIconFixedBitmapItem.SetSVGText(const Value: string);
 begin
   FSVG.LoadFromText(Value);
@@ -286,6 +302,57 @@ begin
   FZoom := ZOOM_DEFAULT;
 end;
 
+procedure TSVGIconImage.SetFixedColor(AColor: TAlphaColor);
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  LItem.SVG.FixedColor := AColor;
+  LItem.DrawSVGIcon;
+end;
+
+function TSVGIconImage.GetFixedColor: TAlphaColor;
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  Result := LItem.SVG.FixedColor;
+end;
+
+procedure TSVGIconImage.SetGrayScale(AValue: Boolean);
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  LItem.SVG.GrayScale := AValue;
+  LItem.DrawSVGIcon;
+end;
+
+function TSVGIconImage.GetGrayScale: Boolean;
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  Result := LItem.SVG.GrayScale;
+end;
+
+procedure TSVGIconImage.SetSVGText(AValue: string);
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  LItem.SVGText := AValue;
+  LItem.DrawSVGIcon;
+end;
+
+function TSVGIconImage.GetSVGText: string;
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  Result := LItem.SVGText;
+end;
+
 function TSVGIconImage.CreateMultiResBitmap: TFixedMultiResBitmap;
 begin
   Result := TSVGIconFixedMultiResBitmap.Create(Self, TSVGIconFixedBitmapItem);
@@ -304,6 +371,30 @@ begin
   inherited height := AHeight;
   FZoom := AZoom;
   FSVGIconMultiResBitmap.UpdateImageSize(AWidth, AHeight, AZoom);
+end;
+
+function TSVGIconImage.GetFixedBitmap: TSVGIconFixedBitmapItem;
+begin
+  Assert(MultiResBitmap.Count > 0);
+  Result := MultiResBitmap[0] as TSVGIconFixedBitmapItem;
+end;
+
+procedure TSVGIconImage.LoadFromFile(const AFileName: string);
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  LItem.SVG.LoadFromFile(AFileName);
+  LItem.DrawSVGIcon;
+end;
+
+procedure TSVGIconImage.SaveToFile(const AFileName: string);
+var
+  LItem: TSVGIconFixedBitmapItem;
+begin
+  LItem := GetFixedBitmap;
+  LItem.SVG.SaveToFile(AFileName);
+  LItem.DrawSVGIcon;
 end;
 
 procedure TSVGIconImage.SetBounds(X, Y, AWidth, AHeight: Single);

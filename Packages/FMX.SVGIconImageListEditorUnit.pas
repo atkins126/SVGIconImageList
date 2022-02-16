@@ -3,7 +3,7 @@
 {       SVG Icon ImageList: An extended ImageList for Delphi/VLC+FMX           }
 {       to simplify use of Icons (resize, opacity and more...)                 }
 {                                                                              }
-{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {                                                                              }
@@ -83,6 +83,7 @@ type
     ImageView: TListBox;
     BottomSplitter: TSplitter;
     ApplyToRootOnlyCheckBox: TCheckBox;
+    ReformatXMLButton: TButton;
     procedure ClearAllButtonClick(Sender: TObject);
     procedure DeleteButtonClick(Sender: TObject);
     procedure AddButtonClick(Sender: TObject);
@@ -112,6 +113,7 @@ type
       const Point: TPointF);
     procedure ZoomChange(Sender: TObject);
     procedure ApplyToRootOnlyCheckBoxChange(Sender: TObject);
+    procedure ReformatXMLButtonClick(Sender: TObject);
   private
     FIconIndexLabel: string;
     FTotIconsLabel: string;
@@ -138,8 +140,9 @@ uses
   Winapi.Messages
   , Winapi.Windows
   , Winapi.shellApi
+  , Xml.XMLDoc
   , System.Math
-  , Image32_SVG_Core;
+  , Img32.SVG.Core;
 
 var
   SavedBounds: TRect = (Left: 0; Top: 0; Right: 0; Bottom: 0);
@@ -487,6 +490,11 @@ begin
   SetImageOpacity(OpacitySpinBox.Value);
 end;
 
+procedure TSVGIconImageListEditorFMX.ReformatXMLButtonClick(Sender: TObject);
+begin
+  SVGText.Lines.Text := Xml.XMLDoc.FormatXMLData(SVGText.Lines.Text);
+end;
+
 procedure TSVGIconImageListEditorFMX.DefaultOpacitySpinBoxChange(
   Sender: TObject);
 begin
@@ -542,12 +550,15 @@ begin
   FTotIconsLabel := IconsGroupBox.Text;
   IconImage.Images := FEditingList;
   BottomSplitter.Position.X := 1;
-  AssignSVGColorList(FixedColorComboBox.Items);
-  AssignSVGColorList(FixedColorItemComboBox.Items);
+  FixedColorComboBox.Items.Assign(ColorConstList);
+  FixedColorItemComboBox.Items.Assign(ColorConstList);
 end;
 
 procedure TSVGIconImageListEditorFMX.FormDestroy(Sender: TObject);
 begin
+  IconImage.Images := nil;
+  ImageView.Images := nil;
+     
   FreeAndNil(FEditingList);
   //Screen.Cursors[crColorPick] := 0;
 end;

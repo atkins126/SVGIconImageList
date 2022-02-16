@@ -3,7 +3,7 @@ object Form1: TForm1
   Top = 0
   Caption = 'SVG Preview & Engine Comparison'
   ClientHeight = 604
-  ClientWidth = 805
+  ClientWidth = 823
   Color = clWhite
   DoubleBuffered = True
   Font.Charset = DEFAULT_CHARSET
@@ -17,12 +17,13 @@ object Form1: TForm1
   PixelsPerInch = 96
   TextHeight = 13
   object RightPanel: TPanel
-    Left = 624
+    Left = 642
     Top = 0
     Width = 181
     Height = 604
     Align = alRight
     TabOrder = 0
+    ExplicitLeft = 624
     object ListBox: TListBox
       Left = 1
       Top = 42
@@ -68,7 +69,7 @@ object Form1: TForm1
     Height = 604
     Align = alLeft
     TabOrder = 1
-    inline FrameViewCairo: TFrameView
+    inline FrameViewSkia: TFrameView
       Left = 1
       Top = 301
       Width = 311
@@ -79,15 +80,21 @@ object Form1: TForm1
       ExplicitTop = 301
       ExplicitWidth = 311
       ExplicitHeight = 302
-      inherited SVGPaintBox: TPaintBox
+      inherited ClientPanel: TPanel
         Width = 311
-        Height = 277
+        Height = 302
         ExplicitWidth = 311
-        ExplicitHeight = 273
-      end
-      inherited TitlePanel: TPanel
-        Width = 311
-        ExplicitWidth = 311
+        ExplicitHeight = 302
+        inherited SVGPaintBox: TPaintBox
+          Width = 307
+          Height = 275
+          ExplicitWidth = 311
+          ExplicitHeight = 273
+        end
+        inherited TitlePanel: TPanel
+          Width = 307
+          ExplicitWidth = 307
+        end
       end
     end
     inline FrameViewTSVG: TFrameView
@@ -101,29 +108,36 @@ object Form1: TForm1
       ExplicitTop = 1
       ExplicitWidth = 311
       ExplicitHeight = 300
-      inherited SVGPaintBox: TPaintBox
+      inherited ClientPanel: TPanel
         Width = 311
-        Height = 275
-        ExplicitWidth = 303
-        ExplicitHeight = 275
-      end
-      inherited TitlePanel: TPanel
-        Width = 311
+        Height = 300
         ExplicitWidth = 311
+        ExplicitHeight = 300
+        inherited SVGPaintBox: TPaintBox
+          Width = 307
+          Height = 273
+          ExplicitWidth = 303
+          ExplicitHeight = 275
+        end
+        inherited TitlePanel: TPanel
+          Width = 307
+          ExplicitWidth = 307
+        end
       end
     end
   end
   object ClientPanel: TPanel
     Left = 313
     Top = 0
-    Width = 311
+    Width = 329
     Height = 604
     Align = alClient
     TabOrder = 2
+    ExplicitWidth = 311
     inline FrameViewImage32: TFrameView
       Left = 1
       Top = 301
-      Width = 309
+      Width = 327
       Height = 302
       Align = alClient
       TabOrder = 0
@@ -131,21 +145,27 @@ object Form1: TForm1
       ExplicitTop = 301
       ExplicitWidth = 309
       ExplicitHeight = 302
-      inherited SVGPaintBox: TPaintBox
-        Width = 309
-        Height = 277
-        ExplicitWidth = 303
-        ExplicitHeight = 273
-      end
-      inherited TitlePanel: TPanel
-        Width = 309
+      inherited ClientPanel: TPanel
+        Width = 327
+        Height = 302
         ExplicitWidth = 309
+        ExplicitHeight = 302
+        inherited SVGPaintBox: TPaintBox
+          Width = 323
+          Height = 275
+          ExplicitWidth = 303
+          ExplicitHeight = 273
+        end
+        inherited TitlePanel: TPanel
+          Width = 323
+          ExplicitWidth = 305
+        end
       end
     end
     inline FrameViewerD2D: TFrameView
       Left = 1
       Top = 1
-      Width = 309
+      Width = 327
       Height = 300
       Align = alTop
       TabOrder = 1
@@ -153,15 +173,23 @@ object Form1: TForm1
       ExplicitTop = 1
       ExplicitWidth = 309
       ExplicitHeight = 300
-      inherited SVGPaintBox: TPaintBox
-        Width = 309
-        Height = 275
-        ExplicitWidth = 303
-        ExplicitHeight = 275
-      end
-      inherited TitlePanel: TPanel
-        Width = 309
+      inherited ClientPanel: TPanel
+        Width = 327
+        Height = 300
         ExplicitWidth = 309
+        ExplicitHeight = 300
+        inherited SVGPaintBox: TPaintBox
+          Width = 323
+          Height = 273
+          ExplicitLeft = 0
+          ExplicitTop = 23
+          ExplicitWidth = 323
+          ExplicitHeight = 273
+        end
+        inherited TitlePanel: TPanel
+          Width = 323
+          ExplicitWidth = 305
+        end
       end
     end
   end

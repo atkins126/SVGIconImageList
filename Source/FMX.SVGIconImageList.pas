@@ -3,7 +3,7 @@
 {       SVGIconImageList: An extended ImageList for Delphi/FMX                 }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {                                                                              }
@@ -44,11 +44,11 @@ uses
   , FMX.Graphics
   , FMX.Objects
   , FMX.Image32SVG
-  , Image32
+  , Img32
   ;
 
 const
-  SVGIconImageListVersion = '2.3.0';
+  SVGIconImageListVersion = '3.4.0';
   DEFAULT_SIZE = 32;
   ZOOM_DEFAULT = 100;
   SVG_INHERIT_COLOR = TAlphaColors.Null;
@@ -163,6 +163,11 @@ type
   end;
 
   {TSVGIconImageList}
+  {$IF CompilerVersion > 34}
+  [ComponentPlatforms(pidWin32 or pidWin64 or pidOSX32 or pidiOSSimulator32 or pidiOSDevice32 or pidAndroidArm32)]
+  {$ELSE}
+  [ComponentPlatforms(pidWin32 or pidWin64 or pidOSX32 or pidiOSSimulator32 or pidiOSDevice32 or pidAndroid32Arm)]
+  {$ENDIF}
   TSVGIconImageList = class(TCustomImageList)
   private
     FWidth, FHeight: Integer;
@@ -225,7 +230,7 @@ type
   end;
 
 procedure PaintToBitmap(const ABitmap: TBitmap; const ASVG: TFmxImage32SVG;
-  const AZoom: Integer);
+  const AZoom: Integer = 100; const AKeepAspectRatio: Boolean = True);
 
 implementation
 
@@ -239,7 +244,7 @@ uses
 
 
 procedure PaintToBitmap(const ABitmap: TBitmap; const ASVG: TFmxImage32SVG;
-  const AZoom: Integer);
+  const AZoom: Integer = 100; const AKeepAspectRatio: Boolean = True);
 var
   LRect: TRectF;
   LWidth, LHeight: Integer;
@@ -250,7 +255,7 @@ begin
   ABitmap.Canvas.BeginScene;
   Try
     ABitmap.Clear(TAlphaColors.Null);
-    ASVG.PaintToBitmap(ABitmap, True);
+    ASVG.PaintToBitmap(ABitmap, AZoom, AKeepAspectRatio);
   Finally
     ABitmap.Canvas.EndScene;
   End;

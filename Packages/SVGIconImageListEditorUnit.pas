@@ -2,7 +2,7 @@
 {                                                                              }
 {       SVGIconImageList Component Editor                                      }
 {                                                                              }
-{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -60,6 +60,9 @@ uses
 resourcestring
   SELECT_DIR = 'Select directory';
   FILES_SAVED = '%d File(s) saved into "%s" folder';
+  USING_ENGINE = 'Using %s';
+  ENGINE_HINT = 'Current Active Engine for rendering SVG images';
+
 type
   TOpenPictureDialogSvg = class(TOpenPictureDialog)
   protected
@@ -126,9 +129,14 @@ type
     SVGErrorStaticText: TStaticText;
     AntiAliasColorLabel: TLabel;
     AntialiasColorComboBox: TColorBox;
-    ExportPngButton: TButton;
     ApplyToRootOnlyCheckBox: TCheckBox;
     ApplyToRootOnlyItemCheckBox: TCheckBox;
+    PngGroupBox: TGroupBox;
+    PngWidthEdit: TEdit;
+    PngHeightEdit: TEdit;
+    ExportPngButton: TButton;
+    PngHeightLabel: TLabel;
+    PngWidthLabel: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure ApplyButtonClick(Sender: TObject);
     procedure ClearAllButtonClick(Sender: TObject);
@@ -221,6 +229,12 @@ uses
   , Vcl.FileCtrl
   , Xml.XMLDoc
   , Vcl.Themes
+  //WARNING: you must define this directive to use this unit outside the IDE
+{$IFNDEF UseSVGEditorsAtRunTime}
+  , ToolsAPI
+  , BrandingAPI
+  {$IF (CompilerVersion >= 32.0)}, IDETheme.Utils{$IFEND}
+{$ENDIF}
   , Winapi.CommDlg
   , SVGIconUtils
   , dlgExportPNG;
@@ -357,6 +371,8 @@ begin
     SizeEdit.Text := IntToStr(FEditingList.Size);
     WidthEdit.Text := IntToStr(FEditingList.Width);
     HeightEdit.Text := IntToStr(FEditingList.Height);
+    PngWidthEdit.Text := IntToStr(FEditingList.Width);
+    PngHeightEdit.Text := IntToStr(FEditingList.Height);
     LIconPanelSize := IconPanel.Height - (IconPanel.BorderWidth * 2);
     if FEditingList.Width > FEditingList.Height then
     begin
@@ -507,7 +523,7 @@ begin
       IconImage.GrayScale := SVGIconImageList.GrayScale or SelectedIcon.GrayScale;
       NameEdit.Text := LIconItem.Name;
       CategoryEdit.Text := LIconItem.Category;
-      IconIndexEdit.Text := LIconItem.Index.ToString;
+      IconIndexEdit.Text := IntToStr(LIconItem.Index);
       SVGText.Lines.Text := LIconItem.SVGText;
       FixedColorItemComboBox.Selected := LIconItem.FixedColor;
       ApplyToRootOnlyItemCheckBox.Checked := LIconItem.ApplyFixedColorToRootOnly;
@@ -516,7 +532,6 @@ begin
     else
     begin
       IconImage.ImageIndex := -1;
-      ItemGroupBox.Caption := '';
       NameEdit.Text := '';
       SVGText.Lines.Text := '';
       CategoryEdit.Text := '';
@@ -727,6 +742,8 @@ begin
   except
     on E: Exception do
     begin
+      SVGErrorStaticText.Font.Color := clRed;
+      SVGErrorStaticText.Font.Style := [fsBold];
       SVGErrorStaticText.Caption := E.Message;
       SVGErrorStaticText.Hint := E.Message;
       SelectedIcon.SVGText := '';
@@ -739,8 +756,9 @@ end;
 
 procedure TSVGIconImageListEditor.ResetError;
 begin
-  SVGErrorStaticText.Caption := '';
-  SVGErrorStaticText.Hint := '';
+  SVGErrorStaticText.Font.Color := clWindowText;
+  SVGErrorStaticText.Caption := Format(USING_ENGINE, [GetGlobalSVGFactoryDesc]);
+  SVGErrorStaticText.Hint := ENGINE_HINT;
 end;
 
 procedure TSVGIconImageListEditor.SVGTextEnter(Sender: TObject);
@@ -880,8 +898,40 @@ begin
 end;
 
 procedure TSVGIconImageListEditor.FormCreate(Sender: TObject);
+{$IFNDEF UseSVGEditorsAtRunTime}
+  {$IF (CompilerVersion >= 32.0)}
+  var
+    LStyle: TCustomStyleServices;
+  {$IFEND}
+{$ENDIF}
 begin
-  inherited;
+{$IFNDEF UseSVGEditorsAtRunTime}
+  {$IF (CompilerVersion >= 32.0)}
+    {$IF (CompilerVersion <= 34.0)}
+    if UseThemeFont then
+      Self.Font.Assign(GetThemeFont);
+    {$IFEND}
+    {$IF CompilerVersion > 34.0}
+    if TIDEThemeMetrics.Font.Enabled then
+      Self.Font.Assign(TIDEThemeMetrics.Font.GetFont);
+    {$IFEND}
+
+    if ThemeProperties <> nil then
+    begin
+      LStyle := ThemeProperties.StyleServices;
+      StyleElements := StyleElements - [seClient];
+      Color := LStyle.GetSystemColor(clWindow);
+      BottomPanel.StyleElements := BottomPanel.StyleElements - [seClient];
+      BottomPanel.ParentBackground := False;
+      BottomPanel.Color := LStyle.GetSystemColor(clBtnFace);
+      IDEThemeManager.RegisterFormClass(TSVGIconImageListEditor);
+      ThemeProperties.ApplyTheme(Self);
+    end;
+  {$IFEND}
+{$ENDIF}
+
+  FUpdating := False;
+  ResetError;
   FEditingList := TSVGIconImageList.Create(Self);
   FOpenDialog := TOpenPictureDialogSvg.Create(Self);
   FOpenDialog.Filter := 'Scalable Vector Graphics (*.svg)|*.svg';
@@ -891,10 +941,8 @@ begin
   FTotIconsLabel := ImageListGroup.Caption;
   FChanged := False;
   FModified := False;
-  SVGText.Font.Name := 'Courier New';
+  SVGText.Font.Name := 'Consolas';
   Caption := Format(Caption, [SVGIconImageListVersion]);
-  SVGErrorStaticText.Font.Color := clRed;
-  SVGErrorStaticText.Font.Style := [fsBold];
 end;
 
 procedure TSVGIconImageListEditor.Apply;
@@ -929,7 +977,7 @@ end;
 
 procedure TSVGIconImageListEditor.ExportButtonClick(Sender: TObject);
 var
-  FDir: string;
+  LOutputPath: string;
 
   procedure SaveIconsToFiles(const AOutDir: string);
   var
@@ -939,6 +987,7 @@ var
   begin
     Screen.Cursor := crHourGlass;
     try
+      System.SysUtils.ForceDirectories(AOutDir);
       C := 0;
       for I := 0 to ImageView.Items.Count-1 do
       begin
@@ -961,14 +1010,14 @@ var
   end;
 
 begin
-  FDir := ExtractFilePath(FOpenDialog.FileName);
+  LOutputPath := ExtractFilePath(FOpenDialog.FileName);
   if Win32MajorVersion >= 6 then
     with TFileOpenDialog.Create(nil) do
       try
         Title := SELECT_DIR;
         Options := [fdoPickFolders, fdoPathMustExist, fdoForceFileSystem];
-        DefaultFolder := FDir;
-        FileName := FDir;
+        DefaultFolder := LOutputPath;
+        FileName := LOutputPath;
         if Execute then
           SaveIconsToFiles(IncludeTrailingPathDelimiter(FileName));
       finally
@@ -976,19 +1025,70 @@ begin
       end
   else
     if SelectDirectory(SELECT_DIR,
-      ExtractFileDrive(FDir), FDir,
+      ExtractFileDrive(LOutputPath), LOutputPath,
       [sdNewUI, sdNewFolder]) then
-    SaveIconsToFiles(IncludeTrailingPathDelimiter(FDir));
+    SaveIconsToFiles(IncludeTrailingPathDelimiter(LOutputPath));
 end;
 
 procedure TSVGIconImageListEditor.ExportPngButtonClick(Sender: TObject);
 var
   LOutputPath: string;
+
+  procedure SaveIconsToFiles(const AOutDir: string);
+  var
+    I, C: Integer;
+    LItem: TSVGIconItem;
+    LFileName: string;
+  begin
+    Screen.Cursor := crHourGlass;
+    try
+      if not System.SysUtils.DirectoryExists(AOutDir) then
+        System.SysUtils.ForceDirectories(AOutDir);
+      C := 0;
+      for I := 0 to ImageView.Items.Count-1 do
+      begin
+        if ImageView.Items[I].Selected then
+        begin
+          LItem := FEditingList.SVGIconItems.Items[I];
+          if LItem.IconName <> '' then
+            LFileName := AOutDir+LItem.IconName+'.png'
+          else
+            LFileName := AOutDir+IntToStr(I)+'.png';
+          LOutputPath := ExtractFilePath(LFileName);
+          if not System.SysUtils.DirectoryExists(LOutputPath) then
+            System.SysUtils.ForceDirectories(LOutputPath);
+          SVGExportToPng(StrToInt(PngWidthEdit.Text), StrToInt(PngHeightEdit.Text),
+            LItem.SVG,
+              LOutputPath, ExtractFileName(LFileName));
+          Inc(C);
+        end;
+      end;
+      ShowMessageFmt(FILES_SAVED, [C, AOutDir]);
+
+    finally
+      Screen.Cursor := crDefault;
+    end;
+  end;
+
 begin
-  LOutputPath := IncludeTrailingPathDelimiter(TPath.GetPicturesPath);
-  ExportToPNG(Self.ClientRect,
-    LOutputPath+SelectedIcon.IconName, SelectedIcon.SVGText,
-    True, SVGIconImageList.Size);
+  LOutputPath := ExtractFilePath(FOpenDialog.FileName);
+  if Win32MajorVersion >= 6 then
+    with TFileOpenDialog.Create(nil) do
+      try
+        Title := SELECT_DIR;
+        Options := [fdoPickFolders, fdoPathMustExist, fdoForceFileSystem];
+        DefaultFolder := LOutputPath;
+        FileName := LOutputPath;
+        if Execute then
+          SaveIconsToFiles(IncludeTrailingPathDelimiter(FileName));
+      finally
+        Free;
+      end
+  else
+    if SelectDirectory(SELECT_DIR,
+      ExtractFileDrive(LOutputPath), LOutputPath,
+      [sdNewUI, sdNewFolder]) then
+    SaveIconsToFiles(IncludeTrailingPathDelimiter(LOutputPath));
 end;
 
 procedure TSVGIconImageListEditor.FormDestroy(Sender: TObject);

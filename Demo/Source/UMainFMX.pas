@@ -4,22 +4,16 @@ interface
 
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Variants,
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs,
-  FMX.Controls.Presentation, FMX.StdCtrls, System.ImageList, FMX.ImgList,
-  FMX.Objects, FMX.MultiresBitmap, System.Rtti, System.Messaging,
-  FMX.ListBox, FMX.Colors, FMX.Layouts,
-  FMX.ListView.Types, FMX.ListView.Appearances, FMX.ListView.Adapters.Base,
-  FMX.ListView, FMX.Edit, FMX.EditBox, FMX.SpinBox,
-  FMX.SVGIconImageList, FMX.SVGIconImage;
+  FMX.Forms, FMX.Controls, System.ImageList, FMX.ImgList, FMX.SVGIconImageList,
+  FMX.StdCtrls, FMX.Ani, FMX.ListBox, FMX.Layouts, FMX.Colors, FMX.Edit,
+  FMX.EditBox, FMX.SpinBox, FMX.Types, FMX.Controls.Presentation, FMX.SVGIconImage;
 
 type
   TSVGIconImageListForm = class(TForm)
     NextButton: TButton;
     Panel1: TPanel;
-    RandomButton: TButton;
     IconsLabel: TLabel;
     CurrentLabel: TLabel;
-    AutoSizeCheckBox: TCheckBox;
     PrevButton: TButton;
     ShowEditorButton: TButton;
     ImageView: TListBox;
@@ -31,18 +25,25 @@ type
     Glyph1: TGlyph;
     Glyph: TGlyph;
     SVGIconImageList: TSVGIconImageList;
-    OpenDialog: TOpenDialog;
-    GrayScaleCheckBox: TCheckBox;
-    ZoomSpinBox: TSpinBox;
-    ZoomLabel: TLabel;
+    ColorAnimation1: TColorAnimation;
+    ComboColorBox: TComboColorBox;
+    Panel2: TPanel;
+    AutosizeSwitch: TSwitch;
+    GrayscaleSwitch: TSwitch;
+    StyleBook1: TStyleBook;
+    Label1: TLabel;
+    Label2: TLabel;
+    FixedColorSwitch: TSwitch;
+    Label3: TLabel;
     procedure FormCreate(Sender: TObject);
     procedure NextButtonClick(Sender: TObject);
-    procedure RandomButtonClick(Sender: TObject);
-    procedure AutoSizeCheckBoxChange(Sender: TObject);
     procedure PrevButtonClick(Sender: TObject);
     procedure ShowEditorButtonClick(Sender: TObject);
     procedure ZoomSpinBoxChange(Sender: TObject);
-    procedure GrayScaleCheckBoxChange(Sender: TObject);
+    procedure AutosizeSwitchClick(Sender: TObject);
+    procedure ComboColorBoxChange(Sender: TObject);
+    procedure GrayscaleSwitchClick(Sender: TObject);
+    procedure FixedColorSwitchClick(Sender: TObject);
   private
     procedure UpdateGUI;
   public
@@ -80,22 +81,6 @@ begin
   UpdateGUI;
 end;
 
-procedure TSVGIconImageListForm.RandomButtonClick(Sender: TObject);
-begin
-  if OpenDialog.Execute then
-  begin
-    //Screen.Cursor := crHourGlass;
-    try
-      SVGIconImageList.LoadFromFiles(OpenDialog.Files);
-    finally
-      UpdateGUI;
-      //Screen.Cursor := crDefault;
-    end;
-  end;
-  Glyph.ImageIndex := SVGIconImageList.Count-1;
-  UpdateGUI;
-end;
-
 procedure TSVGIconImageListForm.ShowEditorButtonClick(Sender: TObject);
 begin
   {$IFDEF MSWINDOWS}EditSVGIconImageList(SVGIconImageList);{$ENDIF}
@@ -103,7 +88,7 @@ end;
 
 procedure TSVGIconImageListForm.ZoomSpinBoxChange(Sender: TObject);
 begin
-  SVGIconImageList.Zoom := Round(ZoomSpinBox.Value);
+//  SVGIconImageList.Zoom := Round(ZoomSpinBox.Value);
 end;
 
 procedure TSVGIconImageListForm.UpdateGUI;
@@ -112,20 +97,36 @@ begin
   CurrentLabel.Text := Format('Current: %d', [Glyph.ImageIndex]);
 end;
 
-procedure TSVGIconImageListForm.AutoSizeCheckBoxChange(Sender: TObject);
+procedure TSVGIconImageListForm.AutosizeSwitchClick(Sender: TObject);
 begin
-  SVGIconImageList.AutoSizeBitmaps := AutoSizeCheckBox.IsChecked;
+  SVGIconImageList.AutoSizeBitmaps := AutosizeSwitch.IsChecked;
+end;
+
+procedure TSVGIconImageListForm.ComboColorBoxChange(Sender: TObject);
+begin
+  FixedColorSwitch.IsChecked := True;
+  SVGIconImageList.FixedColor := ComboColorBox.Color;
+end;
+
+procedure TSVGIconImageListForm.FixedColorSwitchClick(Sender: TObject);
+begin
+  if FixedColorSwitch.IsChecked then
+    SVGIconImageList.FixedColor := ComboColorBox.Color
+  else
+    SVGIconImageList.FixedColor := SVG_NONE_COLOR;
 end;
 
 procedure TSVGIconImageListForm.FormCreate(Sender: TObject);
 begin
-  {$IFNDEF MSWINDOWS}ShowEditorButton.Visible := False;{$ENDIF}
+  {$IFNDEF MSWINDOWS}
+  ShowEditorButton.Visible := False;
+  {$ENDIF}
   UpdateGUI;
 end;
 
-procedure TSVGIconImageListForm.GrayScaleCheckBoxChange(Sender: TObject);
+procedure TSVGIconImageListForm.GrayscaleSwitchClick(Sender: TObject);
 begin
-  SVGIconImageList.GrayScale := GrayScaleCheckBox.IsChecked;
+  SVGIconImageList.GrayScale := GrayscaleSwitch.IsChecked;
 end;
 
 initialization

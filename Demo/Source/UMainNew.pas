@@ -3,7 +3,7 @@
 {       SVG Icon ImageList: An extended ImageList for Delphi/VCL               }
 {       to simplify use of Icons (resize, colors and more...)                  }
 {                                                                              }
-{       Copyright (c) 2019-2020 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {         Nicola Tambascia, Vincent Parrett                                    }
@@ -108,6 +108,7 @@ type
     procedure NewFormActionExecute(Sender: TObject);
     procedure tmrTrackbarTimer(Sender: TObject);
     procedure ApplyToRootOnlyCheckBoxClick(Sender: TObject);
+    procedure SVGIconImageDblClick(Sender: TObject);
   private
     FUpdating: Boolean;
     procedure UpdateButtons;
@@ -131,6 +132,7 @@ uses
   {$ENDIF}
   , SVGColor
   , SVGIconUtils
+  , SVGTextPropertyEditorUnit
   , SVGIconImageListEditorUnit;
 
 procedure TMainForm.UpdateButtons;
@@ -324,6 +326,15 @@ begin
   //Image Editor for ImageCollection
   if EditSVGIconImageCollection(ImageDataModule.SVGIconImageCollection) then
     UpdateGUI;
+end;
+
+procedure TMainForm.SVGIconImageDblClick(Sender: TObject);
+var
+  LSVGText: string;
+begin
+  LSVGText := SVGIconImage.SVGText;
+  if EditSVGTextProperty(LSVGText) then
+    SVGIconImage.SVGText := LSVGText;
 end;
 
 procedure TMainForm.SVGIconImageMouseDown(Sender: TObject; Button: TMouseButton;

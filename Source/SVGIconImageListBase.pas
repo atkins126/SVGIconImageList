@@ -3,7 +3,7 @@
 {       SVGIconImageList: An extended ImageList for Delphi/VCL                 }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -38,7 +38,7 @@ interface
 
 uses
   System.Classes,
-  System.Messaging,
+  {$IFDEF DXE4+}System.Messaging,{$ELSE}SVGMessaging,{$ENDIF}
   WinApi.Windows,
   Vcl.Controls,
   Vcl.Graphics,
@@ -48,7 +48,7 @@ uses
   SvgInterfaces;
 
 const
-  SVGIconImageListVersion = '2.3.0';
+  SVGIconImageListVersion = '3.4.0';
   DEFAULT_SIZE = 16;
 
 type
@@ -123,7 +123,7 @@ type
   {$IFDEF HiDPISupport}
     procedure DPIChangedMessageHandler(const Sender: TObject; const Msg: System.Messaging.TMessage);
   {$ENDIF}
-    procedure SVGItemsUpdateMessageHandler(const Sender: TObject; const Msg: System.Messaging.TMessage);
+    procedure SVGItemsUpdateMessageHandler(const Sender: TObject; const Msg: {$IFDEF DXE4+}System.Messaging{$ELSE}SVGMessaging{$ENDIF}.TMessage);
 
     procedure AssignTo(Dest: TPersistent); override;
     procedure DoAssign(const Source: TPersistent); virtual;
@@ -624,7 +624,7 @@ end;
 {$ENDIF}
 
 procedure TSVGIconImageListBase.SVGItemsUpdateMessageHandler(const Sender: TObject;
-  const Msg: System.Messaging.TMessage);
+  const Msg: {$IFDEF DXE4+}System.Messaging{$ELSE}SVGMessaging{$ENDIF}.TMessage);
 var
   items : TSVGIconItems;
 begin

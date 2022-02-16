@@ -3,7 +3,7 @@
 {       SVGIconImageList: An extended ImageList for Delphi/VCL                 }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -40,7 +40,7 @@ uses
   System.Types,
   System.UITypes,
   System.Classes,
-  System.Messaging,
+  {$IFDEF DXE4+}System.Messaging,{$ELSE}SVGMessaging,{$ENDIF}
   Winapi.Windows,
   Vcl.Graphics,
   SVGInterfaces;
@@ -48,7 +48,7 @@ uses
 type
   TSVGIconItems = class;
 
-  TSVGItemsUpdateMessage = class(System.Messaging.TMessage)
+  TSVGItemsUpdateMessage = class({$IFDEF DXE4+}System.Messaging.{$ELSE}SVGMessaging.{$ENDIF}TMessage)
   end;
 
   TSVGIconItem = class(TCollectionItem)
@@ -205,9 +205,6 @@ begin
   else
     Result.Canvas.Brush.Color := ColorToRGB(LAntiAliasColor);
   Result.SetSize(AWidth, AHeight);
-  {$IFDEF IgnoreAntiAliasedColor}
-  MakeTransparent(Result.Canvas.Handle);
-  {$ENDIF}
   FSVG.PaintTo(Result.Canvas.Handle, TRectF.Create(0, 0, AWidth, AHeight));
 end;
 
@@ -419,7 +416,7 @@ end;
 procedure TSVGIconItems.Update(Item: TCollectionItem);
 begin
   inherited;
-  System.Messaging.TMessageManager.DefaultManager.SendMessage(Self,
+  {$IFDEF DXE4+}System.Messaging{$ELSE}SVGMessaging{$ENDIF}.TMessageManager.DefaultManager.SendMessage(Self,
     TSVGItemsUpdateMessage.Create);
 
   {$IFDEF D10_3+}
@@ -430,7 +427,8 @@ begin
     else
       System.Messaging.TMessageManager.DefaultManager.SendMessage(nil,
         TImageCollectionChangedMessage.Create(TSVGIconImageCollection(Owner),
-          Item.Index, TSVGIconItem(Item).IconName));
+          Item.Index, TSVGIconItem(Item).IconName
+          {$IFDEF D11_0+}, TSVGIconItem(Item).IconName{$ENDIF}));
   end;
   {$ENDIF}
 end;

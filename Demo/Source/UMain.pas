@@ -3,7 +3,7 @@
 {       SVG Icon ImageList: An extended ImageList for Delphi/VCL               }
 {       to simplify use of Icons (resize, colors and more...)                  }
 {                                                                              }
-{       Copyright (c) 2019-2020 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {         Nicola Tambascia, Vincent Parrett                                    }
@@ -38,7 +38,9 @@ uses
   ActnList, ExtCtrls, ComCtrls, ToolWin,
   Spin, SVGIconImageList, SVGIconImage, Vcl.ExtDlgs,
   System.Actions,
-  System.ImageList, //if you are compiling with older version than XE7 remove this line
+  {$IF COMPILERVERSION >= 28}
+  System.ImageList,
+  {$ENDIF}
   SVGIconImageListBase, SVGIconImageCollection, SVGIconVirtualImageList,
   UDataModule;
 
@@ -242,9 +244,6 @@ begin
   {$IFDEF HiDPISupport}
   OnAfterMonitorDpiChanged := FormAfterMonitorDpiChanged;
   {$ENDIF}
-
-  //Increase performance during drawing of SVG Image
-  SvgIconImage.DoubleBuffered := True;
 
   {$IFDEF D10_3+}
   ////Test use of native VirtualImageList

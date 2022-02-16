@@ -2,7 +2,7 @@
 
 ## Four engines to render SVG (Delphi Image32, Delphi TSVG, Direct2D wrapper or Cairo wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
 
-### Actual official version 2.3.0 (VCL+FMX)
+### Actual official version 3.4.0 (VCL+FMX)
 
 | Component | Description |
 | - | - |
@@ -21,13 +21,15 @@ We advise that TSVGIconVirtualImageList should be used only for versions of Delp
 
 From D10.3 version, the **TSVGIconImageCollection** inherits from TCustomImageCollection, so you can also use it with the TVirtualImage component and place SVG icons into the new TControlList component (available from Delphi 10.4.2), as explained [here...](https://github.com/EtheaDev/SVGIconImageList/wiki/TControlList-with-SVGIconImageCollection)
 
-### New in version 2.3: four SVG engines available!
+### New in version 3.4: five SVG engines available!
 
-There are four implementation: 
+There are five implementation:
 
-- Delphi Image32 (default): the new implementatio, using Image32 library by Angus Johnson
+- Native Delphi Image32 (default): the new implementatio, using Image32 library by Angus Johnson
 
-- Delphi TSVG: the first native Delphi code, based on Martin's work which is using GDI+
+- Native Delphi TSVG: the first native Delphi code, based on Martin's work which is using GDI+
+
+- Using SKIA4Delphi library, a cross-platform 2D graphics API based on Google's Skia Graphics Library (incomplete support)
 
 - A wrapper to the native Windows Direct2D implementation 
 
@@ -49,20 +51,25 @@ As you can see, the four engines perform differently depending on the icons and 
 
 <sup>(1)</sup>Notice that Image32 and Cairo are the only engines capable of rendering blur effect (that is always slow to calculate): this is the reason of "slow" performance to render Papirus icons that contains blur effect.
 
-### Available from Delphi XE6 to Delphi 10.4 (32bit and 64bit platforms)
+### Available from Delphi XE3 to Delphi 11.0 (32bit and 64bit platforms)
 
-![Delphi 10.4 Sydney Support](/Demo/Images/SupportingDelphi.jpg)
+![Delphi 11.0 Sydney Support](/Demo/Images/SupportingDelphi.jpg)
 
 Related links: https://www.embarcadero.com/ - https://learndelphi.org/
 
 **Sample image of VCL version**
+
 ![Sample.jpg](./Demo/Images/Sample.jpg)
 
 **Sample image of FMX (Windows) version**
+
 ![SampleFMX.jpg](./Demo/Images/SampleFMX.jpg)
 
-**Sample image of the VCL SVGText-property editor**
+**Sample images of the VCL SVGText-property editor (VCL and FMX)**
+
 ![https://github.com/EtheaDev/SVGIconImageList/blob/master/Demo/Images/SVGTextPropertyEditor.jpg](https://github.com/EtheaDev/SVGIconImageList/blob/master/Demo/Images/SVGTextPropertyEditor.jpg)
+
+![https://github.com/EtheaDev/SVGIconImageList/blob/master/Demo/Images/SVGTextPropertyEditorFMX.jpg](https://github.com/EtheaDev/SVGIconImageList/blob/master/Demo/Images/SVGTextPropertyEditorFMX.jpg)
 
 ### UTILITY
 
@@ -75,6 +82,51 @@ You can use [SVG Shell Extensions](https://github.com/EtheaDev/SVGShellExtension
 Follow the [guide in Wiki section](https://github.com/EtheaDev/SVGIconImageList/wiki) to known how to use those components to modernize your Delphi VCL or FMX Windows applications scalable, colored and beautiful with few lines of code.
 
 ### RELEASE NOTES
+14 Feb 2022: version 3.4.0 (VCL+FMX)
+- Updated Image32 Library to 4.0.1 version
+- Added support to SKIA4Delphi 3.0
+- Fixed some Image32 drawing problem
+
+13 Jan 2022: version 3.3.0 (VCL+FMX)
+- Updated Image32 library to 4.0.0 version
+- Added a set of playing cards svg examples
+- Fixed Image32 drawing problem with "playing cards"
+
+24 Nov 2021: version 3.2.0 (VCL+FMX)
+- Component Editors uses IDE themes (light, dark...) and style
+- Fixed available components into palette when working with mobile platforms
+
+05 Nov 2021: version 3.1.1 (VCL+FMX)
+- Fixed Image32 drawing problem in FMX
+- Added Export to multiple png files to Component Editor
+
+31 Oct 2021: version 3.1.0 (VCL+FMX)
+- Updated Image32 library to 3.4.1 version
+- Added Skia4Delphi engine (not complete)
+
+28 Aug 2021: version 3.0.0 (VCL+FMX)
+- Updated Packages for Delphi 11
+- Updated some documentation (Images and Wiki)
+
+24 Aug 2021: version 2.5.0 (VCL+FMX)
+- Aligned to Image32 library ver.3.1
+
+22 Jul 2021: version 2.4.0 (VCL+FMX)
+- Updated and aligned to Image32 ver.3 library
+- Added packages for Delphi 11 Alexandria
+
+18 Jul 2021: version 2.3.1 (VCL+FMX)
+- Fixed rendering files with color defined by 8 digits
+
+17 Jul 2021: version 2.3.0 (VCL+FMX)
+- Added new engine: Image32 library by Angus Johnson (VCL+FMX)
+- Image32 is now the default native Delphi engine
+- Added support for Android and iOS platforms (by Image32 engine)
+- Added support for backward Delphi versions (from XE3)
+- Added demo to compare the four engines (SVGViewer)
+- Fixed rendering "centered" in SVGIconImage for Cairo engine.
+- Warning: changed TSVGIconImage component ancestor from TCustomControl to TGraphicControl
+
 18 Apr 2021: version 2.2.6 (VCL+FMX)
 - Added new ApplyFixedColorToRootOnly property
 - Added demo for new TControlList component (only for D10.4.2)
@@ -228,6 +280,8 @@ These components use the followin libraries:
   These files are included in the cairo/dlls folder of this project.
 - Image32 library by [Angus Johnson](http://www.angusj.com/delphi/image32/Docs/_Body.htm)
   These files are included in the Image32/Source and Image32/source/Image32_SVG folders
+- SKIA4Delphi Library by [the autohors](https://github.com/skia4delphi/skia4delphi)
+  These files are included in the skia4delphi/Source folder
 
 Many thanks to **Vincent Parrett** and **Kiriakos Vlahos** for their great contibution.
 

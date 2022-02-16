@@ -2,18 +2,12 @@
 {                                                                              }
 {       SVGIconImage Registration for Components and Editors                   }
 {                                                                              }
-{       Copyright (c) 2019-2021 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
 {       https://github.com/EtheaDev/SVGIconsImageList                          }
 {                                                                              }
-{******************************************************************************}
-{       Original version (c) 2005, 2008 Martin Walter with license:            }
-{       Use of this file is permitted for commercial and non-commercial        }
-{       use, as long as the author is credited.                                }
-{       home page: http://www.mwcs.de                                          }
-{       email    : martin.walter@mwcs.de                                       }
 {******************************************************************************}
 {                                                                              }
 {  Licensed under the Apache License, Version 2.0 (the "License");             }
@@ -114,6 +108,11 @@ implementation
 
 uses
   SysUtils
+  , ToolsAPI
+  , BrandingAPI
+  , Vcl.Themes
+  , Vcl.Forms
+  , Vcl.Controls
   , System.UITypes
   , Winapi.ShellApi
   , Winapi.Windows
@@ -121,12 +120,15 @@ uses
   , SVGIconImageListBase
   , SVGIconImageList
   , SVGIconItems
+  , Img32.Panels
   , SVGIconVirtualImageList
   , SVGIconImageCollection
   , SVGIconImageListEditorUnit
   , SVGTextPropertyEditorUnit;
 
+
 { TSVGIconImageListCompEditor }
+
 procedure TSVGIconImageListCompEditor.ExecuteVerb(Index: Integer);
 begin
   inherited;
@@ -138,7 +140,7 @@ begin
   else if Index = 1 then
   begin
     ShellExecute(0, 'open',
-      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Home'), nil, nil,
+      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Overview-(VCL)'), nil, nil,
       SW_SHOWNORMAL)
   end;
 end;
@@ -236,6 +238,9 @@ end;
 
 procedure Register;
 begin
+  RegisterComponents('Image32 Panels',
+    [TImage32Panel]);
+
   RegisterComponents('Ethea',
     [TSVGIconImage,
      TSVGIconImageList,
@@ -267,7 +272,7 @@ begin
   else if Index = 1 then
   begin
     ShellExecute(0, 'open',
-      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Home'), nil, nil,
+      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Overview-(VCL)'), nil, nil,
       SW_SHOWNORMAL)
   end;
 
@@ -300,7 +305,7 @@ begin
   else if Index = 1 then
   begin
     ShellExecute(0, 'open',
-      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Home'), nil, nil,
+      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Overview-(VCL)'), nil, nil,
       SW_SHOWNORMAL)
   end;
 end;
@@ -339,7 +344,7 @@ begin
   else if Index = 1 then
   begin
     ShellExecute(0, 'open',
-      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Home'), nil, nil,
+      PChar('https://github.com/EtheaDev/SVGIconImageList/wiki/Overview-(VCL)'), nil, nil,
       SW_SHOWNORMAL)
   end;
 end;
