@@ -1,8 +1,8 @@
 ﻿# SVGIconImageList [![License](https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## Four engines to render SVG (Delphi Image32, Delphi TSVG, Direct2D wrapper or Cairo wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
+## Five engines to render SVG (Delphi Image32, Delphi TSVG, SKIA4Delphi, Direct2D wrapper or Cairo wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
 
-### Actual official version 3.4.0 (VCL+FMX)
+### Actual official version 3.5.2 (VCL+FMX)
 
 | Component | Description |
 | - | - |
@@ -82,6 +82,19 @@ You can use [SVG Shell Extensions](https://github.com/EtheaDev/SVGShellExtension
 Follow the [guide in Wiki section](https://github.com/EtheaDev/SVGIconImageList/wiki) to known how to use those components to modernize your Delphi VCL or FMX Windows applications scalable, colored and beautiful with few lines of code.
 
 ### RELEASE NOTES
+26 Feb 2022: version 3.5.2 (VCL+FMX)
+- Fixed rendering with FMX-Image32
+
+23 Feb 2022: version 3.5.1 (VCL+FMX)
+- Updated Image32 Library to 4.1.0 version
+- Updated support to SKIA4Delphi 3.1.0
+
+19 Feb 2022: version 3.5.0 (VCL+FMX)
+- Updated Image32 Library to 4.0.2 version
+- Updated support to SKIA4Delphi 3.0.3
+- Fixed SVGText Editor
+- Fixed some SKIA4Delphi SVG rendering
+
 14 Feb 2022: version 3.4.0 (VCL+FMX)
 - Updated Image32 Library to 4.0.1 version
 - Added support to SKIA4Delphi 3.0

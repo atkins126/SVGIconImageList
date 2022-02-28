@@ -9,7 +9,9 @@
 { found in the LICENSE file.                                             }
 {                                                                        }
 {************************************************************************}
+{$IFNDEF SKIA_EMBEDDED}
 unit Skia.API;
+{$ENDIF}
 
 interface
 
@@ -1142,13 +1144,11 @@ type
     [Volatile] FRefCount: Integer;
     FLibHandle: HMODULE;
   {$ENDIF}
-  {$IF DEFINED(MSWINDOWS) or DEFINED(SK_DYNAMIC_LOADING)}
   strict private
     class constructor Create;
     {$IFDEF SK_DYNAMIC_LOADING}
     class destructor Destroy;
     {$ENDIF}
-  {$ENDIF}
   public
     class procedure Initialize;
     class procedure Terminate;
@@ -1839,10 +1839,9 @@ type
     {$ENDREGION}
 
     {$REGION 'include/c/sk4d_version.h'}
-    {$IFNDEF SK_DYNAMIC_LOADING}class function {$ELSE}class var {$ENDIF}sk4d_version_get_build    {$IFDEF SK_DYNAMIC_LOADING}: function {$ENDIF}(): int32_t; cdecl; {$IFNDEF SK_DYNAMIC_LOADING}static;{$ENDIF}
-    {$IFNDEF SK_DYNAMIC_LOADING}class function {$ELSE}class var {$ENDIF}sk4d_version_get_major    {$IFDEF SK_DYNAMIC_LOADING}: function {$ENDIF}(): int32_t; cdecl; {$IFNDEF SK_DYNAMIC_LOADING}static;{$ENDIF}
-    {$IFNDEF SK_DYNAMIC_LOADING}class function {$ELSE}class var {$ENDIF}sk4d_version_get_milestone{$IFDEF SK_DYNAMIC_LOADING}: function {$ENDIF}(): int32_t; cdecl; {$IFNDEF SK_DYNAMIC_LOADING}static;{$ENDIF}
-    {$IFNDEF SK_DYNAMIC_LOADING}class function {$ELSE}class var {$ENDIF}sk4d_version_get_minor    {$IFDEF SK_DYNAMIC_LOADING}: function {$ENDIF}(): int32_t; cdecl; {$IFNDEF SK_DYNAMIC_LOADING}static;{$ENDIF}
+    {$IFNDEF SK_DYNAMIC_LOADING}class function {$ELSE}class var {$ENDIF}sk4d_library_version_get_build{$IFDEF SK_DYNAMIC_LOADING}: function {$ENDIF}(): int32_t; cdecl; {$IFNDEF SK_DYNAMIC_LOADING}static;{$ENDIF}
+    {$IFNDEF SK_DYNAMIC_LOADING}class function {$ELSE}class var {$ENDIF}sk4d_library_version_get_major{$IFDEF SK_DYNAMIC_LOADING}: function {$ENDIF}(): int32_t; cdecl; {$IFNDEF SK_DYNAMIC_LOADING}static;{$ENDIF}
+    {$IFNDEF SK_DYNAMIC_LOADING}class function {$ELSE}class var {$ENDIF}sk4d_library_version_get_minor{$IFDEF SK_DYNAMIC_LOADING}: function {$ENDIF}(): int32_t; cdecl; {$IFNDEF SK_DYNAMIC_LOADING}static;{$ENDIF}
     {$ENDREGION}
 
     {$REGION 'include/c/sk4d_vertices.h'}
@@ -2064,17 +2063,12 @@ type
 
 implementation
 
-{$IF DEFINED(MSWINDOWS) or (DEFINED(ANDROID) and DEFINED(SK_DYNAMIC_LOADING))}
-
 uses
   { Delphi }
-  {$IFDEF MSWINDOWS}
-  System.Math;
-  {$ELSE}
-  System.IOUtils;
+  {$IF DEFINED(ANDROID) and DEFINED(SK_DYNAMIC_LOADING)}
+  System.IOUtils,
   {$ENDIF}
-
-{$ENDIF}
+  System.Math;
 
 {$REGION 'Dynamic loading utils'}
 
@@ -2099,24 +2093,18 @@ end;
 
 { TSkiaAPI }
 
-{$IF DEFINED(MSWINDOWS) or DEFINED(SK_DYNAMIC_LOADING)}
 class constructor TSkiaAPI.Create;
 begin
-  {$IFDEF MSWINDOWS}
   SetExceptionMask(exAllArithmeticExceptions);
-  {$ENDIF}
-  {$IFDEF SK_DYNAMIC_LOADING}
-  Initialize;
-  {$ENDIF}
-end;
-{$ENDIF}
-
 {$IFDEF SK_DYNAMIC_LOADING}
+  Initialize;
+end;
+
 class destructor TSkiaAPI.Destroy;
 begin
   Terminate;
-end;
 {$ENDIF}
+end;
 
 class procedure TSkiaAPI.Initialize;
 begin
@@ -3509,15 +3497,13 @@ end;
 
     {$REGION 'include/c/sk4d_version.h'}
     {$IFDEF SK_DYNAMIC_LOADING}
-    sk4d_version_get_build     := GetProcAddress(FLibHandle, 'sk4d_version_get_build');
-    sk4d_version_get_major     := GetProcAddress(FLibHandle, 'sk4d_version_get_major');
-    sk4d_version_get_milestone := GetProcAddress(FLibHandle, 'sk4d_version_get_milestone');
-    sk4d_version_get_minor     := GetProcAddress(FLibHandle, 'sk4d_version_get_minor');
+    sk4d_library_version_get_build := GetProcAddress(FLibHandle, 'sk4d_library_version_get_build');
+    sk4d_library_version_get_major := GetProcAddress(FLibHandle, 'sk4d_library_version_get_major');
+    sk4d_library_version_get_minor := GetProcAddress(FLibHandle, 'sk4d_library_version_get_minor');
     {$ELSE}
-    class function TSkiaAPI.sk4d_version_get_build;     external TSkiaAPI.LibName name 'sk4d_version_get_build';
-    class function TSkiaAPI.sk4d_version_get_major;     external TSkiaAPI.LibName name 'sk4d_version_get_major';
-    class function TSkiaAPI.sk4d_version_get_milestone; external TSkiaAPI.LibName name 'sk4d_version_get_milestone';
-    class function TSkiaAPI.sk4d_version_get_minor;     external TSkiaAPI.LibName name 'sk4d_version_get_minor';
+    class function TSkiaAPI.sk4d_library_version_get_build; external TSkiaAPI.LibName name 'sk4d_library_version_get_build';
+    class function TSkiaAPI.sk4d_library_version_get_major; external TSkiaAPI.LibName name 'sk4d_library_version_get_major';
+    class function TSkiaAPI.sk4d_library_version_get_minor; external TSkiaAPI.LibName name 'sk4d_library_version_get_minor';
     {$ENDIF}
     {$ENDREGION}
 
