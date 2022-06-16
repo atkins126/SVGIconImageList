@@ -47,7 +47,7 @@ uses
   ;
 
 const
-  SVGIconImageListVersion = '3.5.2';
+  SVGIconImageListVersion = '3.9.0';
   DEFAULT_SIZE = 32;
   ZOOM_DEFAULT = 100;
   SVG_INHERIT_COLOR = TAlphaColors.Null;
@@ -256,13 +256,7 @@ begin
   LWidth := ABitmap.Canvas.Width;
   LHeight := ABitmap.Canvas.Height;
   LRect := TRect.Create(0, 0, LWidth, LHeight);
-  ABitmap.Canvas.BeginScene;
-  Try
-    ABitmap.Clear(TAlphaColors.Null);
-    ASVG.PaintToBitmap(ABitmap, AZoom, AKeepAspectRatio);
-  Finally
-    ABitmap.Canvas.EndScene;
-  End;
+  ASVG.PaintToBitmap(ABitmap, AZoom, AKeepAspectRatio);
 end;
 
 { TSVGIconBitmapItem }
@@ -286,16 +280,17 @@ procedure TSVGIconBitmapItem.DrawSVGIcon;
 var
   LBitmap: TBitmap;
   LBitmapWidth, LBitmapHeight: Integer;
+  LSVG: TFmxImageSVG;
 begin
   LBitmap := inherited Bitmap;
   LBitmapWidth := Round(FWidth * Scale);
   LBitmapHeight := Round(FHeight * Scale);
-  LBitmap.Width  := LBitmapWidth;
-  LBitmap.Height := LBitmapHeight;
-  SVG.Opacity := Opacity;
-  SVG.FixedColor := FixedColor;
-  SVG.Grayscale := GrayScale;
-  PaintToBitmap(LBitmap, SVG, FZoom);
+  LBitmap.SetSize(LBitmapWidth, LBitmapHeight);
+  LSVG := SVG;
+  LSVG.Opacity := Opacity;
+  LSVG.FixedColor := FixedColor;
+  LSVG.Grayscale := GrayScale;
+  PaintToBitmap(LBitmap, LSVG, FZoom);
 end;
 
 function TSVGIconBitmapItem.GetBitmap: TBitmapOfItem;

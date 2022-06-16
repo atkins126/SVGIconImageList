@@ -1,8 +1,8 @@
 ﻿# SVGIconImageList [![License](https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg)](https://opensource.org/licenses/Apache-2.0)
 
-## Five engines to render SVG (Delphi Image32, Delphi TSVG, SKIA4Delphi, Direct2D wrapper or Cairo wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
+## Four engines to render SVG (Delphi Image32, Delphi TSVG, SKIA4Delphi, Direct2D wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
 
-### Actual official version 3.5.2 (VCL+FMX)
+### Actual official version 3.9.0 (VCL+FMX)
 
 | Component | Description |
 | - | - |
@@ -21,37 +21,36 @@ We advise that TSVGIconVirtualImageList should be used only for versions of Delp
 
 From D10.3 version, the **TSVGIconImageCollection** inherits from TCustomImageCollection, so you can also use it with the TVirtualImage component and place SVG icons into the new TControlList component (available from Delphi 10.4.2), as explained [here...](https://github.com/EtheaDev/SVGIconImageList/wiki/TControlList-with-SVGIconImageCollection)
 
-### New in version 3.4: five SVG engines available!
+## Choose your preferred SVG engine!
 
-There are five implementation:
+There are four implementation:
 
 - Native Delphi Image32 (default): the new implementatio, using Image32 library by Angus Johnson
 
 - Native Delphi TSVG: the first native Delphi code, based on Martin's work which is using GDI+
 
-- Using SKIA4Delphi library, a cross-platform 2D graphics API based on Google's Skia Graphics Library (incomplete support)
+- Using SKIA4Delphi library, a cross-platform 2D graphics API based on Google's Skia Graphics Library
 
 - A wrapper to the native Windows Direct2D implementation 
 
-- A wrapper to the "Cairo" library (written in C)
 
 You can read more details [here.](https://github.com/EtheaDev/SVGIconImageList/wiki/Choice-of-Factories)
 
 ## Performance comparison
 
-This table shows the performance of the four rendering engines tested with SVGExplorer, using a significant amount of icons from different sets, rendered at 32x32 pixels.
+This table shows the performance of the four rendering engines tested with SVGExplorer, using a significant amount of icons from different sets, rendered at 128x128 pixels.
 
-Count | Icon set        |    TSVG | Image32 |    D2D |   Cairo | 
-  --: | :--             |     --: |     --: |    --: |     --: | 
- 997  | Font-Awesome    |   453ms |   453ms |  672ms |   516ms | 
- 654  | Papirus         |   547ms |   781ms<sup>(1)</sup> |  547ms |   891ms<sup>(1)</sup> | 
-5366  | Material-Design |  5031ms |  5094ms | 6531ms |  5828ms | 
+Count | Icon set        |    TSVG | Image32 |    D2D |SKIA4Delphi|
+  --: | :--             |     --: |     --: |    --: |     --:   |
+ 997  | Font-Awesome    |  1171ms |  1265ms | 1453ms |  1172ms   |
+ 654  | Papirus         |  1093ms |  2750ms<sup>(1)</sup> |  937ms | 1266ms<sup>(1)</sup> |
+5366  | Material-Design | 10796ms | 11015ms | 12001ms | 10688ms   |
 
-As you can see, the four engines perform differently depending on the icons and their complexity, but the two native Delphi implementation are the best.
+As you can see, the four engines perform differently depending on the icons and their complexity.
 
-<sup>(1)</sup>Notice that Image32 and Cairo are the only engines capable of rendering blur effect (that is always slow to calculate): this is the reason of "slow" performance to render Papirus icons that contains blur effect.
+<sup>(1)</sup>Notice that Image32 and SKIA4Delphi are the only engines capable of rendering blur effect (that is always slow to calculate): this is the reason of "slow" performance to render Papirus icons that contains blur effect.
 
-### Available from Delphi XE3 to Delphi 11.0 (32bit and 64bit platforms)
+### Available from Delphi XE3 to Delphi 11.1 (32bit and 64bit platforms)
 
 ![Delphi 11.0 Sydney Support](/Demo/Images/SupportingDelphi.jpg)
 
@@ -82,6 +81,36 @@ You can use [SVG Shell Extensions](https://github.com/EtheaDev/SVGShellExtension
 Follow the [guide in Wiki section](https://github.com/EtheaDev/SVGIconImageList/wiki) to known how to use those components to modernize your Delphi VCL or FMX Windows applications scalable, colored and beautiful with few lines of code.
 
 ### RELEASE NOTES
+15 Jun 2022: version 3.9.0 (VCL+FMX)
+- Updated to Image32 4.2 library
+- Fixed Blueish tint on Android and MacOS-X
+
+08 May 2022: version 3.8.3 (VCL+FMX)
+- Updated to Skia4Delphi 3.4.0 llibrary
+- SVGExplorer example moved under "Demo" folder
+
+10 Apr 2022: version 3.8.2 (VCL+FMX)
+- Updated to Skia4Delphi 3.3.1 llibrary
+- Updated to Image32 4.11 library
+
+29 Mar 2022: version 3.8.1 (VCL+FMX)
+- Fixed Aspect-Ratio for Skia engine
+- Updated SVGViewer
+- Updated Demos
+- Alignment to latest Skia4Delphi version
+
+17 Mar 2022: version 3.8.0 (VCL+FMX)
+- Support for Delphi 11.1
+- Updated Library suffix for Delphi 10.4 and 11 to (auto)
+
+09 Mar 2022: version 3.7.0 (VCL+FMX)
+- Support for SKIA4Delphi 3.2.0 completed
+- Removed support for Cairo Engine
+- Fixed rendering with Image32
+
+28 Feb 2022: version 3.6.0 (VCL + FMX)
+- Support for SKIA4Delphi also in FMX platforms
+
 26 Feb 2022: version 3.5.2 (VCL+FMX)
 - Fixed rendering with FMX-Image32
 
@@ -287,10 +316,6 @@ These components use the followin libraries:
   Use of this file is permitted for commercial and non-commercial. Use, as long as the author is credited.  
   home page: <http://www.mwcs.de>  email: martin.walter@mwcs.de  
   This library is included in the svg folder of this project.
-- Cairo Delphi headers by [Henri Gourvest](https://github.com/kobi1970/delphignomevectorgraphic)
-  These files are included in the cairo folder of this project.
-- Cairo librsvg dlls by [DJMaster](http://www.djmaster.com/)
-  These files are included in the cairo/dlls folder of this project.
 - Image32 library by [Angus Johnson](http://www.angusj.com/delphi/image32/Docs/_Body.htm)
   These files are included in the Image32/Source and Image32/source/Image32_SVG folders
 - SKIA4Delphi Library by [the autohors](https://github.com/skia4delphi/skia4delphi)

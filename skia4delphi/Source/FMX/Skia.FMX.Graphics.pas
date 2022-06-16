@@ -15,19 +15,22 @@ interface
 
 {$SCOPEDENUMS ON}
 
+{$IF (CompilerVersion < 35) or not DECLARED(RTLVersion111)}
+  {$DEFINE MODULATE_CANVAS}
+{$ENDIF}
+
 uses
   { Delphi }
   FMX.Graphics,
   FMX.Types,
+  FMX.TextLayout,
   System.Classes,
   System.Generics.Collections,
   System.Math.Vectors,
-  {$IF CompilerVersion >= 35}
-  System.SyncObjs,
-  {$ENDIF}
   System.SysUtils,
   System.Types,
   System.UITypes,
+  System.Messaging,
 
   { Skia }
   Skia;
@@ -37,9 +40,9 @@ type
 
   EGrCanvas = class(ESkCanvas);
 
-  { TSkBitmap }
+  { TSkBitmapHandle }
 
-  TSkBitmap = class
+  TSkBitmapHandle = class
   strict private
     FHeight: Integer;
     FPixels: Pointer;
@@ -47,6 +50,7 @@ type
   public
     constructor Create(const AWidth, AHeight: Integer);
     destructor Destroy; override;
+    procedure Initialize; inline;
     property Height: Integer read FHeight;
     property Pixels: Pointer read FPixels;
     property Width: Integer read FWidth;
@@ -56,7 +60,7 @@ type
 
   { TSkCanvasCustom }
 
-  TSkCanvasCustom = class abstract(TCanvas)
+  TSkCanvasCustom = class abstract(TCanvas{$IFDEF MODULATE_CANVAS}, IModulateCanvas{$ENDIF})
   strict private type
     TSaveState = class(TCanvasSaveState)
     strict protected
@@ -65,50 +69,62 @@ type
       procedure Assign(ASource: TPersistent); override;
     end;
 
+  strict private class var
+    FImageCache: TObjectDictionary<TSkCanvasCustom, TDictionary<THandle, ISkImage>>;
+  {$IFDEF MODULATE_CANVAS}
+  strict private
+    FModulateColor: TAlphaColor;
+    { IModulateCanvas }
+    function GetModulateColor: TAlphaColor;
+    procedure SetModulateColor(const AColor: TAlphaColor);
+  {$ENDIF}
+  private
+    FSurface: ISkSurface;
   strict private
     FDrawableHeight: Integer;
     FDrawableWidth: Integer;
     function GetSamplingOptions(const AHighSpeed: Boolean = False): TSkSamplingOptions;
     procedure SetupBrush(const ABrush: TBrush; const ARect: TRectF; const AOpacity: Single; const APaint: ISkPaint);
-  protected
-    class procedure Finalize; virtual;
-    class procedure Initialize; virtual;
   strict protected
-    FSurface: ISkSurface;
     constructor CreateFromPrinter(const APrinter: TAbstractPrinter); override;
     {$IFDEF MSWINDOWS}
     constructor CreateFromWindow(const AParent: TWindowHandle; const AWidth, AHeight: Integer; const AQuality: TCanvasQuality = TCanvasQuality.SystemDefault); override;
     {$ENDIF}
+    function BeginWindow(const AContextHandle: THandle): ISkSurface; virtual; abstract;
     function BitmapToSkImage(const ABitmap: TBitmap): ISkImage;
     function BrushToSkPaint(const ABrush: TBrush; const ARect: TRectF; const AOpacity: Single): ISkPaint;
-    function CreateImage(const ABitmapHandle: THandle; const AColorType: TSkColorType): ISkImage; virtual;
+    function CreateCache(const AWidth, AHeight: Integer; const AColorType: TSkColorType; const APixels: Pointer; const ARowBytes: NativeUInt): ISkImage; virtual;
     function CreateSaveState: TCanvasSaveState; override;
+    procedure DestroyWindow; virtual;
     function DoBeginScene({$IF CompilerVersion < 35}const {$ENDIF}AClipRects: PClipRects = nil; AContextHandle: THandle = 0): Boolean; override; final;
-    function DoBeginWindow(const AContextHandle: THandle): Boolean; virtual; abstract;
     procedure DoDrawBitmap(const ABitmap: TBitmap; const ASrcRect, ADestRect: TRectF; const AOpacity: Single; const AHighSpeed: Boolean); override;
     procedure DoDrawEllipse(const ARect: TRectF; const AOpacity: Single; const ABrush: TStrokeBrush); override;
     procedure DoDrawLine(const APoint1, APoint2: TPointF; const AOpacity: Single; const ABrush: TStrokeBrush); override;
     procedure DoDrawPath(const APath: TPathData; const AOpacity: Single; const ABrush: TStrokeBrush); override;
     procedure DoDrawRect(const ARect: TRectF; const AOpacity: Single; const ABrush: TStrokeBrush); override;
     procedure DoEndScene; override; final;
-    procedure DoEndWindow; virtual;
     procedure DoFillEllipse(const ARect: TRectF; const AOpacity: Single; const ABrush: TBrush); override;
     procedure DoFillPath(const APath: TPathData; const AOpacity: Single; const ABrush: TBrush); override;
     procedure DoFillRect(const ARect: TRectF; const AOpacity: Single; const ABrush: TBrush); override;
     {$IF CompilerVersion >= 30}
     procedure DoSetMatrix(const AMatrix: TMatrix); override;
     {$ENDIF}
-    function GetCachedImage(const ABitmapHandle: THandle): ISkImage; virtual;
+    procedure EndWindow; virtual;
     procedure Resized; virtual;
     procedure Restore; virtual;
     procedure Save; virtual;
     function StrokeBrushToSkPaint(const ABrush: TStrokeBrush; const ARect: TRectF; const AOpacity: Single): ISkPaint;
-    class procedure ClearCache(const ABitmapHandle: THandle); virtual;
+    class procedure ClearCache(const ACanvas: TSkCanvasCustom); virtual;
+    class procedure ClearCacheBitmap(const ABitmapHandle: THandle);
+    class procedure DoClearCacheBitmap(const ACanvas: TSkCanvasCustom; const ABitmapHandle: THandle); virtual;
+    class procedure DoFinalize; virtual;
     class procedure DoFinalizeBitmap(var ABitmapHandle: THandle); override;
+    class function DoInitialize: Boolean; virtual;
     class function DoInitializeBitmap(const AWidth, AHeight: Integer; const AScale: Single; var APixelFormat: TPixelFormat): THandle; override;
     class function DoMapBitmap(const ABitmapHandle: THandle; const AAccess: TMapAccess; var ABitmapData: TBitmapData): Boolean; override;
     class procedure DoUnmapBitmap(const ABitmapHandle: THandle; var ABitmapData: TBitmapData); override;
   public
+    procedure BeforeDestruction; override;
     procedure Clear(const AColor: TAlphaColor); override;
     procedure ClearRect(const ARect: TRectF; const AColor: TAlphaColor = 0); override;
     procedure ExcludeClipRect(const ARect: TRectF); override;
@@ -120,20 +136,11 @@ type
     procedure SetSize(const AWidth, AHeight: Integer); override; final;
     property DrawableHeight: Integer read FDrawableHeight;
     property DrawableWidth: Integer read FDrawableWidth;
-
-    // You can access this property between calls to the BeginScene and EndScene
-    // procedures.
-    //
-    // Notes: 1. If your application uses TBitmaps on multiple threads, and is
-    //   using Skia based Canvas, you can remove the Global Lock of TCanvas.
-    //   Doing this will improve performance considerably; 2. Skia Canvas can be
-    //   created from windows (eg Forms, descendants of TControl) or Bitmaps
-    //   (TBitmap), and drawings created from a window must be done from the
-    //   main thread.
+    /// <summary> Direct access to the Skia Surface. This property just won't be nil between BeginScene and EndScene calls. </summary>
     property Surface: ISkSurface read FSurface;
-
-    class function ColorType: TSkColorType; virtual;
+    class procedure Finalize;
     class function GetCanvasStyle: TCanvasStyles; override;
+    class function Initialize: Boolean;
   end;
 
   { TSkCanvasRasterCustom }
@@ -142,81 +149,75 @@ type
   strict private
     FBufferHandle: THandle;
   strict protected
+    function BeginWindow(const AContextHandle: THandle): ISkSurface; override;
     function CreateBuffer: THandle; virtual; abstract;
     function CreateWindowSurface(const AContextHandle, ABufferHandle: THandle): ISkSurface; virtual; abstract;
-    function DoBeginWindow(const AContextHandle: THandle): Boolean; override; final;
-    procedure DoEndWindow; override; final;
+    procedure EndWindow; override;
+    procedure Flush(const ABufferHandle: THandle); virtual; abstract;
     procedure FreeBuffer(const ABufferHandle: THandle); virtual; abstract;
     procedure Resized; override;
-    procedure SwapBuffers(const ABufferHandle: THandle); virtual; abstract;
   public
     destructor Destroy; override;
   end;
 
+  TSkContextBeforeDestructionMessage = class(TMessage);
+
   { TGrCanvasCustom }
 
   TGrCanvasCustom = class abstract(TSkCanvasCustom)
-  strict private type
-    // The Skia architecture works differently from the TCanvas architecture,
-    // some adaptations were necessary, but they were done in the best possible
-    // way.
-    //
-    // Images (SkImage) cannot be shared between contexts (GrDirectContext),
-    // even though they are created from contexts that belong to the same
-    // sharing group, at the same time they must be destroyed before the context
-    // (GrDirectContext) and we need to keep it already on the GPU for
-    // performance reasons, so we created TImageCache to solve this issue.
-    TImageCache = class sealed
-    strict private class var
-      FCache: TObjectDictionary<TGrCanvasCustom, TDictionary<THandle, ISkImage>>;
-      {$IF CompilerVersion < 35}
-      FCacheLock: TObject;
-      {$ELSE}
-      FCacheLock: TLightweightMREW;
-      {$ENDIF}
-    public
-      class procedure Add(const ACanvas: TGrCanvasCustom; const ABitmapHandle: THandle; const AImage: ISkImage);
-      class procedure Clear(const ACanvas: TGrCanvasCustom);
-      class procedure Finalize;
-      class function Get(const ACanvas: TGrCanvasCustom; const ABitmapHandle: THandle): ISkImage;
-      class procedure Initialize;
-      class procedure Remove(const ABitmapHandle: THandle);
-    end;
-
   strict private
     FContext: IGrDirectContext;
-    FContextCount: Integer;
-    FContextLock: TObject;
+    FContextInitialized: Boolean;
   strict protected
-    constructor CreateFromWindow(const AParent: TWindowHandle; const AWidth, AHeight: Integer; const AQuality: TCanvasQuality = TCanvasQuality.SystemDefault); override;
-    procedure AttachToWindow; virtual;
+    function BeginWindow(const AContextHandle: THandle): ISkSurface; override;
     function CreateContext: IGrDirectContext; virtual; abstract;
-    function CreateImage(const ABitmapHandle: THandle; const AColorType: TSkColorType): ISkImage; override;
-    procedure DetachFromWindow; virtual;
-    function DoBeginWindow(const AContextHandle: THandle): Boolean; override; final;
-    procedure DoEndWindow; override; final;
+    function CreateDirectContext: IGrDirectContext; virtual; abstract;
+    function CreateSurfaceFromWindow: ISkSurface; virtual; abstract;
+    procedure DestroyWindow; override;
+    procedure EndWindow; override;
+    procedure FinalizeContext; virtual; abstract;
     procedure Flush; virtual; abstract;
-    function GetCachedImage(const ABitmapHandle: THandle): ISkImage; override;
-    function GetRenderTarget: IGrBackendRenderTarget; virtual; abstract;
-    procedure Prepare; virtual;
+    function InitializeContext: Boolean; virtual; abstract;
+    procedure PrepareContext; virtual;
     procedure Restore; override;
-    class procedure ClearCache(const ABitmapHandle: THandle); override;
-    class procedure Finalize; override;
-    class procedure Initialize; override;
+    function CreateCache(const AWidth, AHeight: Integer; const AColorType: TSkColorType; const APixels: Pointer; const ARowBytes: NativeUInt): ISkImage; override;
+    class procedure ClearCache(const ACanvas: TSkCanvasCustom); override;
+    class procedure DoClearCacheBitmap(const ACanvas: TSkCanvasCustom; const ABitmapHandle: THandle); override;
   public
     destructor Destroy; override;
-    function BeginContext: Boolean;
-    procedure EndContext;
-
-    // You can access this property between calls to the BeginContext and
-    // EndContext procedures.
-    //
-    // Notes: 1. Skia Canvas can be created from windows (eg Forms, descendants
-    //   of TControl) or Bitmaps (TBitmap), and only Canvas created from a
-    //   window can use this property.
+    /// <summary> Direct access to the Skia Ganesh Direct Context. This property can only be used between BeginScene and EndScene calls. </summary>
     property Context: IGrDirectContext read FContext;
+  end;
 
-    class function Origin: TGrSurfaceOrigin; virtual; abstract;
+  { TSkTextLayout }
+
+  TSkTextLayout = class(TTextLayout)
+  strict private
+    FColor: TAlphaColor;
+    FIgnoreUpdates: Boolean;
+    FMaxLines: Integer;
+    FOpacity: Single;
+    FParagraph: ISkParagraph;
+    FParagraphOffset: TPointF;
+    FTextRect: TRectF;
+    function NeedHorizontalAlignment: Boolean;
+    procedure SetMaxLines(const AValue: Integer);
+    procedure UpdateParagraph;
+  strict protected
+    procedure DoDrawLayout(const ACanvas: TCanvas); overload; override;
+    procedure DoDrawLayout(const ACanvas: ISkCanvas); reintroduce; overload;
+    function DoPositionAtPoint(const APoint: TPointF): Integer; override;
+    function DoRegionForRange(const ARange: TTextRange): TRegion; override;
+    procedure DoRenderLayout; override;
+    function GetTextHeight: Single; override;
+    function GetTextRect: TRectF; override;
+    function GetTextWidth: Single; override;
+  public
+    constructor Create(const ACanvas: TCanvas = nil); override;
+    procedure ConvertToPath(const APath: TPathData); override;
+    procedure RenderLayout(const ACanvas: ISkCanvas); overload;
+    /// <summary> Max lines allowed in text. When the value is different from -1, this property will be used instead of the WordWrap property. </summary>
+    property MaxLines: Integer read FMaxLines write SetMaxLines default -1;
   end;
 
 const
@@ -238,44 +239,53 @@ uses
   { Delphi }
   FMX.Consts,
   FMX.Platform,
-  {$IFDEF MSWINDOWS}
-  FMX.Platform.Win,
-  {$ENDIF}
   FMX.Surfaces,
-  FMX.TextLayout,
-  {$IF DEFINED(MACOS) and NOT DEFINED(IOS)}
-  Macapi.CocoaTypes,
-  Macapi.CoreGraphics,
-  {$ENDIF}
   System.Generics.Defaults,
   System.IOUtils,
   System.Math,
   System.UIConsts,
-  {$IFDEF MSWINDOWS}
+  {$IF DEFINED(MSWINDOWS)}
+  FMX.Platform.Win,
   Winapi.Windows,
+  {$ELSEIF DEFINED(MACOS) and NOT DEFINED(IOS)}
+  Macapi.CocoaTypes,
+  Macapi.CoreGraphics,
   {$ENDIF}
 
   // These units are used for workarounds
   FMX.Forms,
-  {$IFDEF MACOS}
+  {$IF DEFINED(MACOS)}
+  System.Rtti,
   FMX.Context.Metal,
+  FMX.Types3D,
+  FMX.Utils,
   Macapi.Metal,
   Macapi.MetalKit,
-  {$ENDIF}
-  {$IF defined(IOS)}
-  iOSapi.CocoaTypes,
-  iOSapi.OpenGLES,
+  Posix.SysMman,
+  Posix.Unistd,
+  {$IFDEF IOS}
   FMX.Context.GLES,
-  {$ELSEIF defined(ANDROID)}
+  FMX.Controls,
+  FMX.Helpers.iOS,
+  FMX.MediaLibrary,
+  FMX.MediaLibrary.IOS,
+  iOSapi.AssetsLibrary,
+  iOSapi.CocoaTypes,
+  iOSapi.CoreGraphics,
+  iOSapi.Foundation,
+  iOSapi.OpenGLES,
+  iOSapi.UIKit,
+  Macapi.Helpers,
+  Macapi.ObjectiveC,
+  {$ENDIF}
+  {$ELSEIF DEFINED(ANDROID)}
+  System.Rtti,
   Androidapi.Gles2,
   FMX.Context.GLES,
-  {$ENDIF}
-  {$IF defined(ANDROID) or defined(MACOS)}
   FMX.Types3D,
   FMX.Utils,
   Posix.SysMman,
   Posix.Unistd,
-  System.Rtti,
   {$ENDIF}
 
   { Skia }
@@ -285,7 +295,7 @@ uses
   Skia.FMX.Canvas.Metal;
 
 type
-  {$IF defined(MSWINDOWS)}
+  {$IF DEFINED(MSWINDOWS)}
 
   { TSkCanvasRasterWindows }
 
@@ -295,8 +305,8 @@ type
   strict protected
     function CreateBuffer: THandle; override;
     function CreateWindowSurface(const AContextHandle, ABufferHandle: THandle): ISkSurface; override;
+    procedure Flush(const ABufferHandle: THandle); override;
     procedure FreeBuffer(const ABufferHandle: THandle); override;
-    procedure SwapBuffers(const ABufferHandle: THandle); override;
   end;
 
   {$ELSEIF DEFINED(MACOS) and NOT DEFINED(IOS)}
@@ -311,42 +321,17 @@ type
   strict protected
     function CreateBuffer: THandle; override;
     function CreateWindowSurface(const AContextHandle, ABufferHandle: THandle): ISkSurface; override;
+    procedure Flush(const ABufferHandle: THandle); override;
     procedure FreeBuffer(const ABufferHandle: THandle); override;
-    procedure SwapBuffers(const ABufferHandle: THandle); override;
-    class procedure Finalize; override;
-    class procedure Initialize; override;
+    class procedure DoFinalize; override;
+    class function DoInitialize: Boolean; override;
   end;
 
   {$ENDIF}
 
-  { TSkTextLayout }
+  { TSkBitmapHandleCodec }
 
-  TSkTextLayout = class(TTextLayout)
-  strict private
-    FColor: TAlphaColor;
-    FIgnoreUpdates: Boolean;
-    FOpacity: Single;
-    FParagraph: ISkParagraph;
-    FParagraphOffset: TPointF;
-    FTextRect: TRectF;
-    function NeedHorizontalAlignment: Boolean;
-    procedure UpdateParagraph;
-  strict protected
-    procedure DoDrawLayout(const ACanvas: TCanvas); override;
-    function DoPositionAtPoint(const APoint: TPointF): Integer; override;
-    function DoRegionForRange(const ARange: TTextRange): TRegion; override;
-    procedure DoRenderLayout; override;
-    function GetTextHeight: Single; override;
-    function GetTextRect: TRectF; override;
-    function GetTextWidth: Single; override;
-  public
-    constructor Create(const ACanvas: TCanvas = nil); override;
-    procedure ConvertToPath(const APath: TPathData); override;
-  end;
-
-  { TSkBitmapCodec }
-
-  TSkBitmapCodec = class(TCustomBitmapCodec)
+  TSkBitmapHandleCodec = class(TCustomBitmapCodec)
   strict private
     function FitSize(const AWidth, AHeight: Integer; const AFitWidth, AFitHeight: Single): TSize; inline;
     class constructor Create;
@@ -361,21 +346,7 @@ type
     class function IsValid(const AStream: TStream): Boolean; override;
   end;
 
-  { TSkCanvasService }
-
-  TSkCanvasService = class(TInterfacedObject, IFMXCanvasService)
-  strict private
-    FCanvasClass: TSkCanvasClass;
-    FCurrent: IFMXCanvasService;
-  strict private
-    procedure RegisterCanvasClasses;
-    procedure UnregisterCanvasClasses;
-    class function GetCanvasClass: TSkCanvasClass; static; inline;
-  public
-    constructor Create(const ACurrent: IFMXCanvasService);
-  end;
-
-{$IF defined(MSWINDOWS)}
+{$IF DEFINED(MSWINDOWS)}
 
 { TSkCanvasRasterWindows }
 
@@ -407,27 +378,29 @@ begin
   Result := TSkSurface.MakeRasterDirect(TSkImageInfo.Create(LBitmap.bmWidth, LBitmap.bmHeight), LBitmap.bmBits, LBitmap.bmWidthBytes);
 end;
 
-procedure TSkCanvasRasterWindows.FreeBuffer(const ABufferHandle: THandle);
-begin
-  DeleteObject(HBITMAP(ABufferHandle));
-end;
-
-procedure TSkCanvasRasterWindows.SwapBuffers(const ABufferHandle: THandle);
+procedure TSkCanvasRasterWindows.Flush(const ABufferHandle: THandle);
 var
   LBufferDC: HDC;
 begin
-  inherited;
-  LBufferDC := CreateCompatibleDC(0);
-  if LBufferDC = 0 then
-    RaiseLastOSError;
-  try
-    if SelectObject(LBufferDC, HBITMAP(ABufferHandle)) = 0 then
+  if FDC <> 0 then
+  begin
+    LBufferDC := CreateCompatibleDC(0);
+    if LBufferDC = 0 then
       RaiseLastOSError;
-    if not BitBlt(FDC, 0, 0, DrawableWidth, DrawableHeight, LBufferDC, 0, 0, SRCCOPY) then
-      RaiseLastOSError;
-  finally
-    DeleteDC(LBufferDC);
+    try
+      if SelectObject(LBufferDC, HBITMAP(ABufferHandle)) = 0 then
+        RaiseLastOSError;
+      if not BitBlt(FDC, 0, 0, DrawableWidth, DrawableHeight, LBufferDC, 0, 0, SRCCOPY) then
+        RaiseLastOSError;
+    finally
+      DeleteDC(LBufferDC);
+    end;
   end;
+end;
+
+procedure TSkCanvasRasterWindows.FreeBuffer(const ABufferHandle: THandle);
+begin
+  DeleteObject(HBITMAP(ABufferHandle));
 end;
 
 {$ELSEIF DEFINED(MACOS) and NOT DEFINED(IOS)}
@@ -446,24 +419,18 @@ begin
   Result   := TSkSurface.MakeRasterDirect(TSkImageInfo.Create(CGBitmapContextGetWidth(CGContextRef(ABufferHandle)), CGBitmapContextGetHeight(CGContextRef(ABufferHandle)), TSkColorType.RGBA8888), CGBitmapContextGetData(CGContextRef(ABufferHandle)), CGBitmapContextGetBytesPerRow(CGContextRef(ABufferHandle)));
 end;
 
-class procedure TSkCanvasRasterMacOS.Finalize;
+class procedure TSkCanvasRasterMacOS.DoFinalize;
 begin
   CGColorSpaceRelease(FColorSpace);
-  inherited;
 end;
 
-procedure TSkCanvasRasterMacOS.FreeBuffer(const ABufferHandle: THandle);
+class function TSkCanvasRasterMacOS.DoInitialize: Boolean;
 begin
-  CGContextRelease(CGContextRef(ABufferHandle));
-end;
-
-class procedure TSkCanvasRasterMacOS.Initialize;
-begin
-  inherited;
   FColorSpace := CGColorSpaceCreateDeviceRGB;
+  Result      := FColorSpace <> nil;
 end;
 
-procedure TSkCanvasRasterMacOS.SwapBuffers(const ABufferHandle: THandle);
+procedure TSkCanvasRasterMacOS.Flush(const ABufferHandle: THandle);
 var
   LImage: CGImageRef;
 begin
@@ -473,6 +440,11 @@ begin
   finally
     CGImageRelease(LImage);
   end;
+end;
+
+procedure TSkCanvasRasterMacOS.FreeBuffer(const ABufferHandle: THandle);
+begin
+  CGContextRelease(CGContextRef(ABufferHandle));
 end;
 
 {$ENDIF}
@@ -491,6 +463,7 @@ end;
 constructor TSkTextLayout.Create(const ACanvas: TCanvas);
 begin
   inherited;
+  FMaxLines := -1;
   {$REGION ' - Workaround RSP-36975'}
   // - -------------------------------------------------------------------------
   // - WORKAROUND
@@ -505,7 +478,7 @@ begin
   // -   https://quality.embarcadero.com/browse/RSP-36975
   // -
   // - -------------------------------------------------------------------------
-  {$IF CompilerVersion > 35.0}
+  {$IF CompilerVersion > 35}
     {$MESSAGE WARN 'Check if the issue has been fixed'}
   {$ENDIF}
   // - -------------------------------------------------------------------------
@@ -520,20 +493,23 @@ begin
 end;
 
 procedure TSkTextLayout.DoDrawLayout(const ACanvas: TCanvas);
-var
-  LCanvas: ISkCanvas;
 begin
-  if Assigned(FParagraph) then
+  if (ACanvas is TSkCanvasCustom) and Assigned(TSkCanvasCustom(ACanvas).Surface) then
+    DoDrawLayout(TSkCanvasCustom(ACanvas).Surface.Canvas);
+end;
+
+procedure TSkTextLayout.DoDrawLayout(const ACanvas: ISkCanvas);
+begin
+  if Assigned(FParagraph) and Assigned(ACanvas) then
   begin
     if (FColor <> Color) or (FOpacity <> Opacity) then
       UpdateParagraph;
-    LCanvas := TSkCanvasCustom(ACanvas).Surface.Canvas;
-    LCanvas.Save;
+    ACanvas.Save;
     try
-      LCanvas.ClipRect(TRectF.Create(TopLeft, MaxSize.X, MaxSize.Y));
-      FParagraph.Paint(LCanvas, FParagraphOffset.X + TopLeft.X, FParagraphOffset.Y + TopLeft.Y);
+      ACanvas.ClipRect(TRectF.Create(TopLeft, MaxSize.X, MaxSize.Y));
+      FParagraph.Paint(ACanvas, FParagraphOffset.X + TopLeft.X, FParagraphOffset.Y + TopLeft.Y);
     finally
-      LCanvas.Restore;
+      ACanvas.Restore;
     end;
   end;
 end;
@@ -591,20 +567,17 @@ type
 const
   RealHorizontalTextAlign: array[TTextAlign, Boolean] of THorizontalAlign = ((THorizontalAlign.Center, THorizontalAlign.Center), (THorizontalAlign.Left,   THorizontalAlign.Right), (THorizontalAlign.Right,  THorizontalAlign.Left));
 
-  function GetTectRect: TRectF;
+  function GetTextRect: TRectF;
   var
-    LLineBounds: TRectF;
-    LLineMetric: TSkMetrics;
+    LTextBox: TSkTextBox;
   begin
     Result := TRectF.Empty;
-    for LLineMetric in FParagraph.LineMetrics do
+    for LTextBox in FParagraph.GetRectsForRange(0, Text.Length, TSkRectHeightStyle.Max, TSkRectWidthStyle.Tight) do
     begin
-      LLineBounds := TRectF.Create(PointF(LLineMetric.Left, LLineMetric.Baseline + LLineMetric.Descent - LLineMetric.Height),
-        LLineMetric.Width, LLineMetric.Height);
       if Result.IsEmpty then
-        Result := LLineBounds
+        Result := LTextBox.Rect
       else
-        Result := Result + LLineBounds;
+        Result := Result + LTextBox.Rect;
     end;
     if Result.IsEmpty then
       Result.Height := FParagraph.Height;
@@ -640,7 +613,7 @@ begin
   if FIgnoreUpdates then
     Exit;
   UpdateParagraph;
-  FTextRect := GetTectRect;
+  FTextRect := GetTextRect;
   FParagraphOffset := GetParagraphOffset(FTextRect);
   FTextRect.Offset(FParagraphOffset);
   case VerticalAlign of
@@ -678,6 +651,31 @@ end;
 function TSkTextLayout.NeedHorizontalAlignment: Boolean;
 begin
   Result := (not WordWrap) and (Trimming = TTextTrimming.None);
+end;
+
+procedure TSkTextLayout.RenderLayout(const ACanvas: ISkCanvas);
+begin
+  RenderLayout(nil);
+  DoDrawLayout(ACanvas);
+end;
+
+procedure TSkTextLayout.SetMaxLines(const AValue: Integer);
+begin
+  if FMaxLines <> AValue then
+  begin
+    FMaxLines := AValue;
+    BeginUpdate;
+    try
+      {$IF CompilerVersion >= 29}
+      SetNeedUpdate;
+      {$ELSE}
+      RightToLeft := not RightToLeft;
+      RightToLeft := not RightToLeft;
+      {$ENDIF}
+    finally
+      EndUpdate;
+    end;
+  end;
 end;
 
 procedure TSkTextLayout.UpdateParagraph;
@@ -846,7 +844,11 @@ const
       Result.TextDirection := TSkTextDirection.RightToLeft;
     if Trimming in [TTextTrimming.Character, TTextTrimming.Word] then
       Result.Ellipsis := '...';
-    if WordWrap then
+    if FMaxLines = 0 then
+      Result.MaxLines := High(Integer)
+    else if FMaxLines > 0 then
+      Result.MaxLines := FMaxLines
+    else if WordWrap then
       Result.MaxLines := High(Integer)
     else
       Result.MaxLines := 1;
@@ -860,9 +862,10 @@ const
     else
       Result.TextAlign := SkTextAlign[HorizontalAlign];
     Result.TextStyle := CreateDefaultTextStyle;
-    if WordWrap then
+
+    if Result.MaxLines <> 1 then
     begin
-      if AMaxLines = 0 then
+      if (AMaxLines = 0) and (Result.MaxLines = NativeUInt(High(Integer))) then
       begin
         LMinFontSize := Result.TextStyle.FontSize;
         for LAttribute in AAttributes do
@@ -871,12 +874,15 @@ const
           AMaxLines := Ceil(MaxSize.Y / LMinFontSize);
       end;
       if AMaxLines > 0 then
-        Result.MaxLines := AMaxLines
-      else
-        Result.MaxLines := High(Integer);
-    end
-    else
-      Result.MaxLines := 1;
+        Result.MaxLines := AMaxLines;
+    end;
+  end;
+
+  // Temporary solution to fix an issue with Skia: https://bugs.chromium.org/p/skia/issues/detail?id=13117
+  // SkParagraph has several issues with the #13 line break, so the best thing to do is replace it with #10 or a zero-widh character (#8203)
+  function NormalizeParagraphText(const AText: string): string;
+  begin
+    Result := AText.Replace(#13#10, #8203#10).Replace(#13, #10);
   end;
 
   procedure DoUpdateParagraph(const AMaxLines: Integer);
@@ -885,6 +891,7 @@ const
     LAttributes: TArray<TTextAttributedRange>;
     LBuilder: ISkParagraphBuilder;
     LLastAttributeEndIndex: Integer;
+    LText: string;
   begin
     FColor   := Color;
     FOpacity := Opacity;
@@ -896,9 +903,13 @@ const
       begin
         if LLastAttributeEndIndex < LAttribute.Range.Pos then
           LBuilder.AddText(Text.Substring(LLastAttributeEndIndex, LAttribute.Range.Pos - LLastAttributeEndIndex));
-        LBuilder.PushStyle(CreateTextStyle(LAttribute.Attribute));
-        LBuilder.AddText(Text.Substring(LAttribute.Range.Pos, LAttribute.Range.Length));
-        LBuilder.Pop;
+        LText := NormalizeParagraphText(Text.Substring(LAttribute.Range.Pos, LAttribute.Range.Length));
+        if not LText.IsEmpty then
+        begin
+          LBuilder.PushStyle(CreateTextStyle(LAttribute.Attribute));
+          LBuilder.AddText(LText);
+          LBuilder.Pop;
+        end;
         LLastAttributeEndIndex := LAttribute.Range.Pos + LAttribute.Range.Length;
       end;
       if LLastAttributeEndIndex < Text.Length then
@@ -932,9 +943,9 @@ begin
   end;
 end;
 
-{ TSkBitmapCodec }
+{ TSkBitmapHandleCodec }
 
-class constructor TSkBitmapCodec.Create;
+class constructor TSkBitmapHandleCodec.Create;
 begin
   RegisterIfNotExists('.bmp', SVBitmaps, False);
   RegisterIfNotExists('.gif', SVGIFImages, False);
@@ -953,7 +964,7 @@ begin
   RegisterIfNotExists('.srw', SRawSRW, False);
 end;
 
-function TSkBitmapCodec.FitSize(const AWidth, AHeight: Integer; const AFitWidth,
+function TSkBitmapHandleCodec.FitSize(const AWidth, AHeight: Integer; const AFitWidth,
   AFitHeight: Single): TSize;
 var
   LRatio: Single;
@@ -968,7 +979,7 @@ begin
     Result := TSize.Create(Trunc((AWidth + Epsilon) / LRatio), Trunc((AHeight + Epsilon) / LRatio));
 end;
 
-class function TSkBitmapCodec.GetImageSize(const AFileName: string): TPointF;
+class function TSkBitmapHandleCodec.GetImageSize(const AFileName: string): TPointF;
 var
   LCodec: ISkCodec;
 begin
@@ -978,7 +989,7 @@ begin
   Result := TPointF.Create(LCodec.Width, LCodec.Height);
 end;
 
-class function TSkBitmapCodec.IsValid(const AStream: TStream): Boolean;
+class function TSkBitmapHandleCodec.IsValid(const AStream: TStream): Boolean;
 
   function IsValid(const AMemoryStream: TCustomMemoryStream): Boolean; inline;
   begin
@@ -1002,7 +1013,7 @@ begin
   end;
 end;
 
-function TSkBitmapCodec.LoadFromFile(const AFileName: string;
+function TSkBitmapHandleCodec.LoadFromFile(const AFileName: string;
   const ABitmapSurface: TBitmapSurface; const AMaxSizeLimit: Cardinal): Boolean;
 var
   LCodec: ISkCodec;
@@ -1026,7 +1037,7 @@ begin
   end;
 end;
 
-function TSkBitmapCodec.LoadFromStream(const AStream: TStream;
+function TSkBitmapHandleCodec.LoadFromStream(const AStream: TStream;
   const ABitmapSurface: TBitmapSurface; const AMaxSizeLimit: Cardinal): Boolean;
 
   function LoadFromStream(const AMemoryStream: TCustomMemoryStream): Boolean;
@@ -1069,7 +1080,7 @@ begin
   end;
 end;
 
-function TSkBitmapCodec.LoadThumbnailFromFile(const AFileName: string;
+function TSkBitmapHandleCodec.LoadThumbnailFromFile(const AFileName: string;
   const AFitWidth, AFitHeight: Single; const AUseEmbedded: Boolean;
   const ABitmapSurface: TBitmapSurface): Boolean;
 var
@@ -1086,14 +1097,14 @@ begin
   Result := (Assigned(LImage)) and (LImage.ScalePixels(TSkImageInfo.Create(ABitmapSurface.Width, ABitmapSurface.Height), ABitmapSurface.Bits, ABitmapSurface.Pitch, TSkImageCachingHint.Disallow));
 end;
 
-class procedure TSkBitmapCodec.RegisterIfNotExists(const AFileExtension,
+class procedure TSkBitmapHandleCodec.RegisterIfNotExists(const AFileExtension,
   ADescription: string; const ACanSave: Boolean);
 begin
   if not TBitmapCodecManager.CodecExists(AFileExtension) then
-    TBitmapCodecManager.RegisterBitmapCodecClass(AFileExtension, ADescription, ACanSave, TSkBitmapCodec);
+    TBitmapCodecManager.RegisterBitmapCodecClass(AFileExtension, ADescription, ACanSave, TSkBitmapHandleCodec);
 end;
 
-function TSkBitmapCodec.SaveToFile(const AFileName: string;
+function TSkBitmapHandleCodec.SaveToFile(const AFileName: string;
   const ABitmapSurface: TBitmapSurface;
   const ASaveParams: PBitmapCodecSaveParams): Boolean;
 var
@@ -1107,7 +1118,7 @@ begin
   Result := True;
 end;
 
-function TSkBitmapCodec.SaveToStream(const AStream: TStream;
+function TSkBitmapHandleCodec.SaveToStream(const AStream: TStream;
   const ABitmapSurface: TBitmapSurface; const AExtension: string;
   const ASaveParams: PBitmapCodecSaveParams): Boolean;
 var
@@ -1121,458 +1132,61 @@ begin
   Result := True;
 end;
 
-{$REGION ' - Workaround RSP-36957'}
-// - ---------------------------------------------------------------------------
-// - WORKAROUND
-// - ---------------------------------------------------------------------------
-// -
-// - Description:
-// -   This code is a workaround intended to fix a bug involving the
-// -   TCustomContextOpenGL.DoCopyToBits.
-// -
-// - Note:
-// -   To solve it without having to change the FMX source we had to use RTTI.
-// -
-// - Bug report:
-// -   https://quality.embarcadero.com/browse/RSP-36957
-// -
-// - ---------------------------------------------------------------------------
-{$IF CompilerVersion > 35.0}
-  {$MESSAGE WARN 'Check if the issue has been fixed'}
-{$ENDIF}
-// - ---------------------------------------------------------------------------
-{$IF defined(ANDROID) or defined(IOS)}
+{ TSkBitmapHandle }
 
-type
-  { TCustomContextOpenGLFix }
-
-  TCustomContextOpenGLFix = class
-  strict private
-    type
-      { TContext3D }
-
-      {$RTTI EXPLICIT METHODS([vcProtected])}
-      TContext3D = class(FMX.Types3D.TContext3D)
-      protected
-        procedure DoCopyToBits(const Bits: Pointer; const Pitch: Integer; const ARect: TRect); override;
-      end;
-
-      { TCustomContextOpenGLAccess }
-
-      TCustomContextOpenGLAccess = class(TCustomContextOpenGL);
-  strict private
-    class procedure DoCopyToBitsFixed(ASelf: TObject; const Bits: Pointer; const Pitch: Integer; const ARect: TRect); static;
-  public
-    class procedure TryApply(const AClass: TContextClass); static;
-  end;
-
-{ TCustomContextOpenGLFix.TContext3D }
-
-procedure TCustomContextOpenGLFix.TContext3D.DoCopyToBits(const Bits: Pointer; const Pitch: Integer;
-  const ARect: TRect);
-begin
-end;
-
-{ TCustomContextOpenGLFix }
-
-class procedure TCustomContextOpenGLFix.DoCopyToBitsFixed(ASelf: TObject; const Bits: Pointer; const Pitch: Integer; const ARect: TRect);
-var
-  I: Integer;
-  LBuffer: PAlphaColorArray;
-  LBufferLen: Integer;
-  LCurrentFramebuffer: GLuint;
-  LRect: TRect;
-begin
-  with TCustomContextOpenGLAccess(ASelf) do
-  begin
-    if Valid then
-    begin
-      LBufferLen := Width * Height * 4;
-      GetMem(LBuffer, LBufferLen);
-      try
-        if FFrameBuf <> 0 then
-        begin
-          glGetIntegerv(GL_FRAMEBUFFER_BINDING, @LCurrentFramebuffer);
-          glBindFramebuffer(GL_FRAMEBUFFER, FFrameBuf);
-        end;
-        glReadPixels(0, 0, Width, Height, GL_RGBA, GL_UNSIGNED_BYTE, LBuffer);
-        LRect := TRect.Intersect(ARect, TRect.Create(0, 0, Width, Height));
-        for I := LRect.Top to LRect.Bottom - 1 do
-          Move(LBuffer[(Height - 1 - I) * Width + LRect.Left], PAlphaColorArray(Bits)[I * (Pitch div 4) + LRect.Left], LRect.Width * 4);
-        if FFrameBuf <> 0 then
-          glBindFramebuffer(GL_FRAMEBUFFER, LCurrentFramebuffer);
-      finally
-        FreeMem(LBuffer);
-      end;
-      {$IF CompilerVersion < 34}
-      if GLHasAnyErrors then
-        RaiseContextExceptionFmt(@SErrorInContextMethod, ['DoCopyBits']);
-      {$ELSE}
-      TGlesDiagnostic.RaiseIfHasError(@SErrorInContextMethod, ['DoCopyBits']);
-      {$ENDIF}
-    end;
-  end;
-end;
-
-class procedure TCustomContextOpenGLFix.TryApply(const AClass: TContextClass);
-
-  function HookVMT(const AVMTEntry, AHookAddress: Pointer): Boolean;
-  var
-    LAlignedCodeAddress: UIntPtr;
-    LPageSize: Integer;
-  begin
-    LPageSize := sysconf(_SC_PAGESIZE);
-    LAlignedCodeAddress := UIntPtr(AVMTEntry) and (not (LPageSize - 1));
-    Result := (mprotect(Pointer(LAlignedCodeAddress), LPageSize, PROT_READ or PROT_WRITE) = 0);
-    if Result then
-      PPointer(AVMTEntry)^ := AHookAddress;
-  end;
-
-  procedure DoApplyFix;
-  var
-    LRttiContext: TRttiContext;
-    LRttiMethod: TRttiMethod;
-  begin
-    LRttiContext := TRttiContext.Create;
-    try
-      for LRttiMethod in LRttiContext.GetType(TContext3D).AsInstance.GetMethods do
-      begin
-        if SameText(LRttiMethod.Name, 'DoCopyToBits') then
-        begin
-          HookVMT(Pointer(PByte(AClass) + (LRttiMethod.VirtualIndex * SizeOf(Pointer))), @TCustomContextOpenGLFix.DoCopyToBitsFixed);
-          Break;
-        end;
-      end;
-    finally
-      LRttiContext.Free;
-    end;
-  end;
-
-begin
-  if Assigned(AClass) and AClass.InheritsFrom(TCustomContextOpenGL) then
-    DoApplyFix;
-end;
-
-{$ENDIF}
-// - ---------------------------------------------------------------------------
-{$ENDREGION}
-
-{$REGION ' - Workaround RSP-37147'}
-// - ---------------------------------------------------------------------------
-// - WORKAROUND
-// - ---------------------------------------------------------------------------
-// -
-// - Description:
-// -   This code is a workaround intended to fix a bug involving the
-// -   TContextMetal.DoCopyToBits.
-// -
-// - Note:
-// -   To solve it without having to change the FMX source, we had to use RTTI.
-// -
-// - Bug report:
-// -   https://quality.embarcadero.com/browse/RSP-37147
-// -
-// - ---------------------------------------------------------------------------
-{$IF CompilerVersion > 35.0}
-  {$MESSAGE WARN 'Check if the issue has been fixed and if not, check if the fields of the class FMX.Context.Metal.TContextMetal are the same'}
-{$ENDIF}
-// - ---------------------------------------------------------------------------
-{$IF defined(MACOS)}
-
-type
-  { TContextMetalFix }
-
-  TContextMetalFix = class
-  strict private
-    type
-      { TContext3D }
-
-      // Used to capture the virtual index of the DoCopyToBits method via Rtti to apply the fix in runtime
-      {$RTTI EXPLICIT METHODS([vcProtected])}
-      TContext3D = class(FMX.Types3D.TContext3D)
-      protected
-        procedure DoCopyToBits(const Bits: Pointer; const Pitch: Integer; const ARect: TRect); override;
-      end;
-
-      { TContextMetal }
-
-      // This is a copy of TContextMetal private fields to give us access to it using hardcast. On each new
-      // RAD Studio update check if the declaration is still identical in the FMX.Context.Metal unit.
-      TContextMetal = class(TCustomContextMetal)
-      protected
-        FPipelineStateConfiguration: TPipelineStateConfiguration;
-        FDepthStencilStateConfiguration: TDepthStencilStateConfiguration;
-        FCommandQueue: MTLCommandQueue;
-        FCommandBuffer: MTLCommandBuffer;
-        FRenderPassDescriptor: MTLRenderPassDescriptor;
-        FRenderCommandEncoder: MTLRenderCommandEncoder;
-        FCurrentDrawable: CAMetalDrawable;
-        FOnScreenTexture: MTLTexture;
-        FStencilReferenceValue: LongWord;
-        FSampleCount: NSUInteger;
-      end;
-  strict private
-    class procedure DoCopyToBitsFixed(ASelf: TObject; const Bits: Pointer; const Pitch: Integer; const ARect: TRect); static;
-  public
-    class procedure TryApply(const AClass: TContextClass); static;
-  end;
-
-{ TContextMetalFix.TContext3D }
-
-procedure TContextMetalFix.TContext3D.DoCopyToBits(const Bits: Pointer; const Pitch: Integer;
-  const ARect: TRect);
-begin
-end;
-
-{ TContextMetalFix }
-
-class procedure TContextMetalFix.DoCopyToBitsFixed(ASelf: TObject; const Bits: Pointer; const Pitch: Integer; const ARect: TRect);
-
-  function CreateRegion(const ARect: TRect; const AScale: Single): MTLRegion;
-  begin
-    with TContextMetal(ASelf) do
-    begin
-      if SameValue(AScale, 1, TEpsilon.Scale) then
-      begin
-        Result.origin.x := ARect.left;
-        Result.origin.y := ARect.top;
-        Result.size.width := ARect.Width;
-        Result.size.height := ARect.Height;
-      end
-      else
-      begin
-        Result.origin.x := Round(ARect.Left * Scale);
-        Result.origin.y := Round(ARect.Top * Scale);
-        Result.size.width := Round(ARect.Width * Scale);
-        Result.size.height := Round(ARect.Height * Scale);
-      end;
-      Result.origin.z := 0;
-      Result.size.depth := 1;
-    end;
-  end;
-
-  procedure SynchronizeResources(const ATexture: MTLTexture);
-  var
-    CommandBuffer: MTLCommandBuffer;
-    LBlitCommandEncoder: MTLBlitCommandEncoder;
-  begin
-    with TContextMetal(ASelf) do
-    begin
-      CommandBuffer := FCommandQueue.CommandBuffer;
-
-      if CommandBuffer = nil then
-        Exit;
-
-      LBlitCommandEncoder := CommandBuffer.blitCommandEncoder;
-      LBlitCommandEncoder.synchronizeResource(ATexture);
-      LBlitCommandEncoder.endEncoding;
-      CommandBuffer.commit;
-      CommandBuffer.waitUntilCompleted;
-    end;
-  end;
-
-var
-  LCopyRect: TRect;
-  LTexture: MTLTexture;
-  LRegion: MTLRegion;
-begin
-  with TContextMetal(ASelf) do
-  begin
-    LTexture := nil;
-
-    if FCommandBuffer <> nil then
-      FCommandBuffer.waitUntilCompleted;
-
-    LCopyRect := TRect.Intersect(ARect, TRect.Create(0, 0, Width, Height));
-    if Texture <> nil then
-    begin
-      LTexture := TMTLTexture.Wrap(Pointer(Texture.Handle));
-      LRegion := CreateRegion(LCopyRect, 1);
-    end
-    else if FOnScreenTexture <> nil then
-    begin
-      LTexture := FOnScreenTexture;
-      LRegion := CreateRegion(LCopyRect, Scale);
-    end;
-
-    if LTexture <> nil then
-    begin
-      // Synchronizing a Managed Resource between GPU and CPU
-      if LTexture.storageMode = MTLStorageModeManaged then
-        SynchronizeResources(LTexture);
-
-      // Get texture data
-      LTexture.getBytesBytesPerRowFromRegionMipmapLevel(Bits, Pitch, LRegion, 0);
-    end;
-  end;
-end;
-
-class procedure TContextMetalFix.TryApply(const AClass: TContextClass);
-
-  function HookVMT(const AVMTEntry, AHookAddress: Pointer): Boolean;
-  var
-    LAlignedCodeAddress: UIntPtr;
-    LPageSize: Integer;
-  begin
-    LPageSize := sysconf(_SC_PAGESIZE);
-    LAlignedCodeAddress := UIntPtr(AVMTEntry) and (not (LPageSize - 1));
-    Result := (mprotect(Pointer(LAlignedCodeAddress), LPageSize, PROT_READ or PROT_WRITE) = 0);
-    if Result then
-      PPointer(AVMTEntry)^ := AHookAddress;
-  end;
-
-  procedure DoApplyFix;
-  var
-    LRttiContext: TRttiContext;
-    LRttiMethod: TRttiMethod;
-  begin
-    LRttiContext := TRttiContext.Create;
-    try
-      for LRttiMethod in LRttiContext.GetType(TContext3D).AsInstance.GetMethods do
-      begin
-        if SameText(LRttiMethod.Name, 'DoCopyToBits') then
-        begin
-          HookVMT(Pointer(PByte(AClass) + (LRttiMethod.VirtualIndex * SizeOf(Pointer))), @TContextMetalFix.DoCopyToBitsFixed);
-          Break;
-        end;
-      end;
-    finally
-      LRttiContext.Free;
-    end;
-  end;
-
-begin
-  if Assigned(AClass) and AClass.InheritsFrom(TContextMetal) then
-    DoApplyFix;
-end;
-
-{$ENDIF}
-// - ---------------------------------------------------------------------------
-{$ENDREGION}
-
-{ TSkCanvasService }
-
-constructor TSkCanvasService.Create(const ACurrent: IFMXCanvasService);
-begin
-  inherited Create;
-  FCurrent := ACurrent;
-end;
-
-class function TSkCanvasService.GetCanvasClass: TSkCanvasClass;
-begin
-  {$IF defined(MSWINDOWS)}
-  if GlobalUseSkiaRasterWhenAvailable then
-    Result := TSkCanvasRasterWindows
-  else
-    Result := TGrCanvasGL;
-  {$ELSEIF DEFINED(IOS)}
-  if GlobalUseMetal then
-    Result := TGrCanvasMetal
-  else
-    Result := TGrCanvasGL;
-  {$ELSEIF DEFINED(MACOS)}
-  if GlobalUseMetal then
-    Result := TGrCanvasMetal
-  else
-    {$IFDEF IOS}
-    Result := TGrCanvasGL;
-    {$ELSE}
-    Result := TSkCanvasRasterMacOS;
-    {$ENDIF}
-  {$ELSEIF DEFINED(ANDROID)}
-  Result := TGrCanvasGL;
-  {$ELSE}
-  Result := nil;
-  {$ENDIF}
-end;
-
-procedure TSkCanvasService.RegisterCanvasClasses;
-begin
-  if Assigned(FCurrent) then
-  begin
-    if GlobalUseSkia then
-    begin
-      FCanvasClass := GetCanvasClass;
-      if Assigned(FCanvasClass) then
-      begin
-        FCanvasClass.Initialize;
-        // Ensuring that our canvas will be chosen as the default
-        TCanvasManager.EnableSoftwareCanvas(True);
-        TCanvasManager.RegisterCanvas(FCanvasClass, True, False);
-        TTextLayoutManager.RegisterTextLayout(TSkTextLayout, FCanvasClass);
-      end;
-      if not GlobalDisableSkiaCodecsReplacement then
-      begin
-        TBitmapCodecManager.UnregisterBitmapCodecClass('.jpg');
-        TBitmapCodecManager.RegisterBitmapCodecClass('.jpg', SVJPGImages, True, TSkBitmapCodec);
-        TBitmapCodecManager.UnregisterBitmapCodecClass('.jpeg');
-        TBitmapCodecManager.RegisterBitmapCodecClass('.jpeg', SVJPGImages, True, TSkBitmapCodec);
-        TBitmapCodecManager.UnregisterBitmapCodecClass('.png');
-        TBitmapCodecManager.RegisterBitmapCodecClass('.png', SVPNGImages, True, TSkBitmapCodec);
-      end;
-    end;
-    FCurrent.RegisterCanvasClasses;
-
-    // Apply workarounds
-    {$IF defined(ANDROID) or defined(IOS)}
-    if Assigned(FCanvasClass) then
-      TCustomContextOpenGLFix.TryApply(TContextManager.DefaultContextClass);
-    {$ENDIF}
-    {$IFDEF MACOS}
-    if Assigned(FCanvasClass) then
-      TContextMetalFix.TryApply(TContextManager.DefaultContextClass);
-    {$ENDIF}
-  end;
-end;
-
-procedure TSkCanvasService.UnregisterCanvasClasses;
-begin
-  if Assigned(FCurrent) then
-  begin
-    if Assigned(FCanvasClass) then
-      FCanvasClass.Finalize;
-    FCurrent.UnregisterCanvasClasses;
-  end;
-end;
-
-{ TSkBitmap }
-
-constructor TSkBitmap.Create(const AWidth, AHeight: Integer);
+constructor TSkBitmapHandle.Create(const AWidth, AHeight: Integer);
 begin
   inherited Create;
   FWidth  := AWidth;
   FHeight := AHeight;
-  GetMem(FPixels, FWidth * FHeight * 4);
 end;
 
-destructor TSkBitmap.Destroy;
+destructor TSkBitmapHandle.Destroy;
 begin
   FreeMem(FPixels);
   inherited;
 end;
 
+procedure TSkBitmapHandle.Initialize;
+begin
+  if FPixels = nil then
+    FPixels := AllocMem(FWidth * FHeight * 4);
+end;
+
 { TSkCanvasCustom }
+
+procedure TSkCanvasCustom.BeforeDestruction;
+begin
+  inherited;
+  if Parent <> nil then
+    DestroyWindow;
+end;
 
 function TSkCanvasCustom.BitmapToSkImage(
   const ABitmap: FMX.Graphics.TBitmap): ISkImage;
 var
   LBitmapData: TBitmapData;
-  LBitmapHandle: THandle;
 begin
   if not ABitmap.HandleAllocated then
     Exit(nil);
   if ABitmap.CanvasClass.InheritsFrom(ClassType) then
   begin
-    LBitmapHandle := ABitmap.Handle;
-    if Parent <> nil then
+    if TSkBitmapHandle(ABitmap.Handle).Pixels = nil then
+      Exit(nil);
+    if (Parent <> nil) and (Assigned(FImageCache)) then
     begin
-      Result := GetCachedImage(LBitmapHandle);
-      if Assigned(Result) then
-        Exit;
-      Result := CreateImage(LBitmapHandle, SkFmxColorType[ABitmap.PixelFormat]);
+      if (FImageCache.ContainsKey(Self)) and (FImageCache[Self].ContainsKey(ABitmap.Handle)) then
+        Result := FImageCache[Self][ABitmap.Handle]
+      else
+      begin
+        Result := CreateCache(ABitmap.Width, ABitmap.Height, SkFmxColorType[ABitmap.PixelFormat], TSkBitmapHandle(ABitmap.Handle).Pixels, ABitmap.Width * 4);
+        if not FImageCache.ContainsKey(Self) then
+          FImageCache.Add(Self, TDictionary<THandle, ISkImage>.Create);
+        FImageCache[Self].Add(ABitmap.Handle, Result);
+      end;
     end
     else
-      Result := TSkImage.MakeFromRaster(TSkImageInfo.Create(TSkBitmap(LBitmapHandle).Width, TSkBitmap(LBitmapHandle).Height, SkFmxColorType[ABitmap.PixelFormat]), TSkBitmap(LBitmapHandle).Pixels, TSkBitmap(LBitmapHandle).Width * 4);
+      Result := TSkImage.MakeFromRaster(TSkImageInfo.Create(ABitmap.Width, ABitmap.Height, SkFmxColorType[ABitmap.PixelFormat]), TSkBitmapHandle(ABitmap.Handle).Pixels, ABitmap.Width * 4);
   end
   else
   begin
@@ -1595,11 +1209,35 @@ end;
 
 procedure TSkCanvasCustom.Clear(const AColor: TAlphaColor);
 begin
+  {$IF CompilerVersion >= 35}
+  RaiseIfBeginSceneCountZero;
+  {$ELSE}
+  if BeginSceneCount > 0 then
+  {$ENDIF}
   FSurface.Canvas.Clear(AColor);
 end;
 
-class procedure TSkCanvasCustom.ClearCache(const ABitmapHandle: THandle);
+class procedure TSkCanvasCustom.ClearCache(const ACanvas: TSkCanvasCustom);
 begin
+  FImageCache[ACanvas].Clear;
+end;
+
+class procedure TSkCanvasCustom.ClearCacheBitmap(const ABitmapHandle: THandle);
+begin
+  TThread.Queue(nil,
+    procedure ()
+    var
+      LCanvas: TSkCanvasCustom;
+    begin
+      if Assigned(FImageCache) then
+      begin
+        for LCanvas in FImageCache.Keys do
+        begin
+          if FImageCache[LCanvas].ContainsKey(ABitmapHandle) then
+            DoClearCacheBitmap(LCanvas, ABitmapHandle);
+        end;
+      end;
+    end);
 end;
 
 procedure TSkCanvasCustom.ClearRect(const ARect: TRectF;
@@ -1614,9 +1252,11 @@ begin
   end;
 end;
 
-class function TSkCanvasCustom.ColorType: TSkColorType;
+function TSkCanvasCustom.CreateCache(const AWidth, AHeight: Integer;
+  const AColorType: TSkColorType; const APixels: Pointer;
+  const ARowBytes: NativeUInt): ISkImage;
 begin
-  Result := SkNative32ColorType;
+  Result := TSkImage.MakeFromRaster(TSkImageInfo.Create(AWidth, AHeight, AColorType), APixels, ARowBytes);
 end;
 
 constructor TSkCanvasCustom.CreateFromPrinter(const APrinter: TAbstractPrinter);
@@ -1636,15 +1276,15 @@ end;
 
 {$ENDIF}
 
-function TSkCanvasCustom.CreateImage(const ABitmapHandle: THandle;
-  const AColorType: TSkColorType): ISkImage;
-begin
-  Result := TSkImage.MakeFromRaster(TSkImageInfo.Create(TSkBitmap(ABitmapHandle).Width, TSkBitmap(ABitmapHandle).Height, AColorType), TSkBitmap(ABitmapHandle).Pixels, TSkBitmap(ABitmapHandle).Width * 4);
-end;
-
 function TSkCanvasCustom.CreateSaveState: TCanvasSaveState;
 begin
   Result := TSaveState.Create;
+end;
+
+procedure TSkCanvasCustom.DestroyWindow;
+begin
+  if Assigned(FImageCache) then
+    FImageCache.Remove(Self);
 end;
 
 function TSkCanvasCustom.DoBeginScene({$IF CompilerVersion < 35}const {$ENDIF}AClipRects: PClipRects;
@@ -1655,23 +1295,30 @@ begin
   begin
     if Bitmap <> nil then
     begin
-      ClearCache(Bitmap.Handle);
+      ClearCacheBitmap(Bitmap.Handle);
+      TSkBitmapHandle(Bitmap.Handle).Initialize;
       FDrawableWidth  := Width;
       FDrawableHeight := Height;
-      FSurface := TSkSurface.MakeRasterDirect(TSkImageInfo.Create(TSkBitmap(Bitmap.Handle).Width, TSkBitmap(Bitmap.Handle).Height, SkFmxColorType[Bitmap.PixelFormat]), TSkBitmap(Bitmap.Handle).Pixels, TSkBitmap(Bitmap.Handle).Width * 4);
-      Result   := Assigned(FSurface);
+      FSurface        := TSkSurface.MakeRasterDirect(TSkImageInfo.Create(Width, Height, SkFmxColorType[Bitmap.PixelFormat]), TSkBitmapHandle(Bitmap.Handle).Pixels, Width * 4);
     end
     else if Parent <> nil then
     begin
       FDrawableWidth  := Round(Width  * Scale);
       FDrawableHeight := Round(Height * Scale);
-      Result          := DoBeginWindow(AContextHandle);
+      FSurface        := BeginWindow(AContextHandle);
     end
     else
       Exit(False);
+    Result := Assigned(FSurface);
     if Result then
       FSurface.Canvas.SetMatrix(TMatrix.CreateScaling(Scale, Scale));
   end;
+end;
+
+class procedure TSkCanvasCustom.DoClearCacheBitmap(
+  const ACanvas: TSkCanvasCustom; const ABitmapHandle: THandle);
+begin
+  FImageCache[ACanvas].Remove(ABitmapHandle);
 end;
 
 procedure TSkCanvasCustom.DoDrawBitmap(const ABitmap: FMX.Graphics.TBitmap;
@@ -1685,6 +1332,10 @@ begin
   begin
     LPaint := TSkPaint.Create;
     LPaint.AlphaF := AOpacity;
+    {$IFDEF MODULATE_CANVAS}
+    if FModulateColor <> TAlphaColors.Null then
+      LPaint.ColorFilter := TSkColorFilter.MakeBlend(FModulateColor, TSkBlendMode.SrcIn);
+    {$ENDIF}
     FSurface.Canvas.DrawImageRect(LImage, ASrcRect, ADestRect, GetSamplingOptions(AHighSpeed), LPaint);
   end;
 end;
@@ -1694,6 +1345,8 @@ procedure TSkCanvasCustom.DoDrawEllipse(const ARect: TRectF;
 var
   LPathBuilder: ISkPathBuilder;
 begin
+  if SameValue(ABrush.Thickness, 0, TEpsilon.Position) then
+    Exit;
   LPathBuilder := TSkPathBuilder.Create;
   LPathBuilder.AddOval(ARect, TSkPathDirection.CW, 3);
   FSurface.Canvas.DrawPath(LPathBuilder.Detach, StrokeBrushToSkPaint(ABrush, ARect, AOpacity));
@@ -1702,18 +1355,24 @@ end;
 procedure TSkCanvasCustom.DoDrawLine(const APoint1, APoint2: TPointF;
   const AOpacity: Single; const ABrush: TStrokeBrush);
 begin
+  if SameValue(ABrush.Thickness, 0, TEpsilon.Position) then
+    Exit;
   FSurface.Canvas.DrawLine(APoint1, APoint2, StrokeBrushToSkPaint(ABrush, TRectF.Create(APoint1, APoint2), AOpacity));
 end;
 
 procedure TSkCanvasCustom.DoDrawPath(const APath: TPathData;
   const AOpacity: Single; const ABrush: TStrokeBrush);
 begin
+  if SameValue(ABrush.Thickness, 0, TEpsilon.Position) then
+    Exit;
   FSurface.Canvas.DrawPath(APath.ToSkPath, StrokeBrushToSkPaint(ABrush, APath.GetBounds, AOpacity));
 end;
 
 procedure TSkCanvasCustom.DoDrawRect(const ARect: TRectF;
   const AOpacity: Single; const ABrush: TStrokeBrush);
 begin
+  if SameValue(ABrush.Thickness, 0, TEpsilon.Position) then
+    Exit;
   FSurface.Canvas.DrawRect(ARect, StrokeBrushToSkPaint(ABrush, ARect, AOpacity));
 end;
 
@@ -1725,14 +1384,10 @@ begin
     if WindowHandleToPlatform(Parent){$IF CompilerVersion < 30}.Form{$ENDIF}.Transparency then
       FSurface.ReadPixels(TSkImageInfo.Create({$IF CompilerVersion < 31}Width, Height{$ELSE}WindowHandleToPlatform(Parent).WndClientSize.Width, WindowHandleToPlatform(Parent).WndClientSize.Height{$ENDIF}), WindowHandleToPlatform(Parent).BufferBits, {$IF CompilerVersion < 31}Width{$ELSE}WindowHandleToPlatform(Parent).WndClientSize.Width{$ENDIF} * 4);
     {$ENDIF}
-    DoEndWindow;
+    EndWindow;
   end;
   FSurface := nil;
   inherited;
-end;
-
-procedure TSkCanvasCustom.DoEndWindow;
-begin
 end;
 
 procedure TSkCanvasCustom.DoFillEllipse(const ARect: TRectF;
@@ -1757,21 +1412,38 @@ begin
   FSurface.Canvas.DrawRect(ARect, BrushToSkPaint(ABrush, ARect, AOpacity));
 end;
 
+class procedure TSkCanvasCustom.DoFinalize;
+begin
+end;
+
 class procedure TSkCanvasCustom.DoFinalizeBitmap(var ABitmapHandle: THandle);
 begin
-  ClearCache(ABitmapHandle);
-  TSkBitmap(ABitmapHandle).Free;
+  ClearCacheBitmap(ABitmapHandle);
+  TSkBitmapHandle(ABitmapHandle).Free;
+end;
+
+class function TSkCanvasCustom.DoInitialize: Boolean;
+begin
+  Result := True;
 end;
 
 class function TSkCanvasCustom.DoInitializeBitmap(const AWidth,
   AHeight: Integer; const AScale: Single;
   var APixelFormat: TPixelFormat): THandle;
 begin
-  Result := THandle(TSkBitmap.Create(AWidth, AHeight));
+  Result := THandle(TSkBitmapHandle.Create(AWidth, AHeight));
   if APixelFormat = TPixelFormat.None then
   begin
-    // Some methods used in Windows ignore PixelFormat, in Windows we will always use TPixelFormat.BGRA
-    APixelFormat := SkFmxPixelFormat[{$IFDEF MSWINDOWS}TSkColorType.BGRA8888{$ELSE}ColorType{$ENDIF}];
+    {$IF DEFINED(MSWINDOWS)}
+    APixelFormat := TPixelFormat.BGRA;
+    {$ELSEIF DEFINED(MACOS)}
+    if GlobalUseMetal then
+      APixelFormat := TPixelFormat.BGRA
+    else
+      APixelFormat := TPixelFormat.RGBA;
+    {$ELSE}
+    APixelFormat := TPixelFormat.RGBA;
+    {$ENDIF}
   end;
 end;
 
@@ -1779,9 +1451,10 @@ class function TSkCanvasCustom.DoMapBitmap(const ABitmapHandle: THandle;
   const AAccess: TMapAccess; var ABitmapData: TBitmapData): Boolean;
 begin
   if AAccess <> TMapAccess.Read then
-    ClearCache(ABitmapHandle);
-  ABitmapData.Data  := TSkBitmap(ABitmapHandle).Pixels;
-  ABitmapData.Pitch := TSkBitmap(ABitmapHandle).Width * 4;
+    ClearCacheBitmap(ABitmapHandle);
+  TSkBitmapHandle(ABitmapHandle).Initialize;
+  ABitmapData.Data  := TSkBitmapHandle(ABitmapHandle).Pixels;
+  ABitmapData.Pitch := TSkBitmapHandle(ABitmapHandle).Width * 4;
   Result := True;
 end;
 
@@ -1789,7 +1462,7 @@ end;
 
 procedure TSkCanvasCustom.DoSetMatrix(const AMatrix: TMatrix);
 begin
-  if Assigned(FSurface) then
+  if BeginSceneCount > 0 then
     FSurface.Canvas.SetMatrix(AMatrix * TMatrix.CreateScaling(Scale, Scale));
 end;
 
@@ -1800,6 +1473,10 @@ class procedure TSkCanvasCustom.DoUnmapBitmap(const ABitmapHandle: THandle;
 begin
 end;
 
+procedure TSkCanvasCustom.EndWindow;
+begin
+end;
+
 procedure TSkCanvasCustom.ExcludeClipRect(const ARect: TRectF);
 begin
   Inc(FClippingChangeCount);
@@ -1807,19 +1484,29 @@ begin
 end;
 
 class procedure TSkCanvasCustom.Finalize;
+var
+  LCanvas: TSkCanvasCustom;
 begin
+  DoFinalize;
+  for LCanvas in FImageCache.Keys do
+    ClearCache(LCanvas);
+  FImageCache.Free;
   TSkiaAPI.Terminate;
-end;
-
-function TSkCanvasCustom.GetCachedImage(const ABitmapHandle: THandle): ISkImage;
-begin
-  Result := nil;
 end;
 
 class function TSkCanvasCustom.GetCanvasStyle: TCanvasStyles;
 begin
   Result := [];
 end;
+
+{$IFDEF MODULATE_CANVAS}
+
+function TSkCanvasCustom.GetModulateColor: TAlphaColor;
+begin
+  Result := FModulateColor;
+end;
+
+{$ENDIF}
 
 function TSkCanvasCustom.GetSamplingOptions(
   const AHighSpeed: Boolean): TSkSamplingOptions;
@@ -1837,9 +1524,16 @@ begin
   end;
 end;
 
-class procedure TSkCanvasCustom.Initialize;
+class function TSkCanvasCustom.Initialize: Boolean;
 begin
   TSkiaAPI.Initialize;
+  if not DoInitialize then
+  begin
+    TSkiaAPI.Terminate;
+    Exit(False);
+  end;
+  FImageCache := TObjectDictionary<TSkCanvasCustom, TDictionary<THandle, ISkImage>>.Create([doOwnsValues]);
+  Result      := True;
 end;
 
 procedure TSkCanvasCustom.IntersectClipRect(const ARect: TRectF);
@@ -1882,8 +1576,18 @@ end;
 procedure TSkCanvasCustom.SetMatrix(const AMatrix: TMatrix);
 begin
   inherited;
-  if Assigned(FSurface) then
+  if BeginSceneCount > 0 then
     FSurface.Canvas.SetMatrix(AMatrix * TMatrix.CreateScaling(Scale, Scale));
+end;
+
+{$ENDIF}
+
+
+{$IFDEF MODULATE_CANVAS}
+
+procedure TSkCanvasCustom.SetModulateColor(const AColor: TAlphaColor);
+begin
+  FModulateColor := AColor;
 end;
 
 {$ENDIF}
@@ -2030,6 +1734,14 @@ end;
 
 { TSkCanvasRasterCustom }
 
+function TSkCanvasRasterCustom.BeginWindow(
+  const AContextHandle: THandle): ISkSurface;
+begin
+  if FBufferHandle = 0 then
+    FBufferHandle := CreateBuffer;
+  Result := CreateWindowSurface(AContextHandle, FBufferHandle);
+end;
+
 destructor TSkCanvasRasterCustom.Destroy;
 begin
   if FBufferHandle <> 0 then
@@ -2037,18 +1749,9 @@ begin
   inherited;
 end;
 
-function TSkCanvasRasterCustom.DoBeginWindow(
-  const AContextHandle: THandle): Boolean;
+procedure TSkCanvasRasterCustom.EndWindow;
 begin
-  if FBufferHandle = 0 then
-    FBufferHandle := CreateBuffer;
-  FSurface := CreateWindowSurface(AContextHandle, FBufferHandle);
-  Result   := Assigned(FSurface);
-end;
-
-procedure TSkCanvasRasterCustom.DoEndWindow;
-begin
-  SwapBuffers(FBufferHandle);
+  Flush(FBufferHandle);
 end;
 
 procedure TSkCanvasRasterCustom.Resized;
@@ -2063,253 +1766,1181 @@ end;
 
 { TGrCanvasCustom }
 
-procedure TGrCanvasCustom.AttachToWindow;
+function TGrCanvasCustom.BeginWindow(const AContextHandle: THandle): ISkSurface;
 begin
-end;
-
-function TGrCanvasCustom.BeginContext: Boolean;
-begin
-  TMonitor.Enter(FContextLock);
-  if FContextCount = 0 then
+  if not FContextInitialized then
   begin
-    try
-      if not Assigned(FContext) then
-      begin
-        FContext := CreateContext;
-        if not Assigned(FContext) then
-        begin
-          TMonitor.Exit(FContextLock);
-          Exit(False);
-        end;
-      end;
-      AttachToWindow;
-      Prepare;
-      FSurface := TSkSurface.MakeFromRenderTarget(FContext, GetRenderTarget, Origin, ColorType);
-      if not Assigned(FSurface) then
-      begin
-        DetachFromWindow;
-        TMonitor.Exit(FContextLock);
-        Exit(False);
-      end
-      else
-        FContextCount := 1;
-    except
-      TMonitor.Exit(FContextLock);
-      raise;
-    end;
-  end
-  else
-  begin
-    TMonitor.Exit(FContextLock);
-    Inc(FContextCount);
+    FContextInitialized := InitializeContext;
+    if not FContextInitialized then
+      Exit(nil);
   end;
-  Result := True;
+  PrepareContext;
+  if not Assigned(FContext) then
+  begin
+    FContext := CreateDirectContext;
+    if not Assigned(FContext) then
+      Exit(nil);
+  end;
+  Result := CreateSurfaceFromWindow;
 end;
 
-class procedure TGrCanvasCustom.ClearCache(const ABitmapHandle: THandle);
+class procedure TGrCanvasCustom.ClearCache(const ACanvas: TSkCanvasCustom);
 begin
-  TImageCache.Remove(ABitmapHandle);
-end;
-
-constructor TGrCanvasCustom.CreateFromWindow(const AParent: TWindowHandle;
-  const AWidth, AHeight: Integer; const AQuality: TCanvasQuality);
-begin
+  TGrCanvasCustom(ACanvas).PrepareContext;
   inherited;
-  FContextLock := TObject.Create;
 end;
 
-function TGrCanvasCustom.CreateImage(const ABitmapHandle: THandle;
-  const AColorType: TSkColorType): ISkImage;
+function TGrCanvasCustom.CreateCache(const AWidth, AHeight: Integer;
+  const AColorType: TSkColorType; const APixels: Pointer;
+  const ARowBytes: NativeUInt): ISkImage;
 begin
-  inherited.MakeTextureImage(FContext, Result);
-  TImageCache.Add(Self, ABitmapHandle, Result);
+  Result := inherited;
+  Result := Result.MakeTextureImage(FContext);
 end;
 
 destructor TGrCanvasCustom.Destroy;
 begin
-  if Parent <> nil then
-  begin
-    try
-      if Assigned(FContext) then
-      begin
-        Prepare;
-        FContext.Dispose;
-        TImageCache.Clear(Self);
-      end;
-    finally
-      FContextLock.Free;
-    end;
-  end;
+  if FContextInitialized then
+    FinalizeContext;
   inherited;
 end;
 
-procedure TGrCanvasCustom.DetachFromWindow;
+procedure TGrCanvasCustom.DestroyWindow;
 begin
+  if Assigned(FContext) then
+  begin
+    PrepareContext;
+    TMessageManager.DefaultManager.SendMessage(Self, TSkContextBeforeDestructionMessage.Create);
+    inherited;
+    FContext := nil;
+  end;
 end;
 
-function TGrCanvasCustom.DoBeginWindow(const AContextHandle: THandle): Boolean;
+class procedure TGrCanvasCustom.DoClearCacheBitmap(
+  const ACanvas: TSkCanvasCustom; const ABitmapHandle: THandle);
 begin
-  Result := BeginContext;
+  TGrCanvasCustom(ACanvas).PrepareContext;
+  inherited;
 end;
 
-procedure TGrCanvasCustom.DoEndWindow;
+procedure TGrCanvasCustom.EndWindow;
 begin
   FSurface.FlushAndSubmit;
-  FSurface.Dispose;
+  FSurface := nil;
   FContext.FlushAndSubmit;
   Flush;
-  EndContext;
 end;
 
-procedure TGrCanvasCustom.EndContext;
-begin
-  Dec(FContextCount);
-  if FContextCount = 0 then
-  begin
-    if Assigned(FContext) then
-      DetachFromWindow;
-    TMonitor.Exit(FContextLock);
-  end;
-end;
-
-class procedure TGrCanvasCustom.Finalize;
-begin
-  TImageCache.Finalize;
-  inherited;
-end;
-
-function TGrCanvasCustom.GetCachedImage(const ABitmapHandle: THandle): ISkImage;
-begin
-  Result := TImageCache.Get(Self, ABitmapHandle);
-end;
-
-class procedure TGrCanvasCustom.Initialize;
-begin
-  inherited;
-  TImageCache.Initialize;
-end;
-
-procedure TGrCanvasCustom.Prepare;
+procedure TGrCanvasCustom.PrepareContext;
 begin
 end;
 
 procedure TGrCanvasCustom.Restore;
 begin
   if Parent <> nil then
-    Prepare;
+    PrepareContext;
   inherited;
 end;
 
-{ TGrCanvasCustom.TImageCache }
+{$REGION ' - Workaround RSP-36957'}
+// - ---------------------------------------------------------------------------
+// - WORKAROUND
+// - ---------------------------------------------------------------------------
+// -
+// - Description:
+// -   This code is a workaround intended to fix a bug involving the
+// -   TCustomContextOpenGL.DoCopyToBits.
+// -
+// - Bug report:
+// -   https://quality.embarcadero.com/browse/RSP-36957
+// -
+// - ---------------------------------------------------------------------------
+{$IF CompilerVersion > 35}
+  {$MESSAGE WARN 'Check if the issue has been fixed'}
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$IF DEFINED(ANDROID) or DEFINED(IOS)}
 
-class procedure TGrCanvasCustom.TImageCache.Add(const ACanvas: TGrCanvasCustom;
-  const ABitmapHandle: THandle; const AImage: ISkImage);
-begin
-  {$IF CompilerVersion < 35}
-  TMonitor.Enter(FCacheLock);
-  {$ELSE}
-  FCacheLock.BeginWrite;
-  {$ENDIF}
-  try
-    if not FCache.ContainsKey(ACanvas) then
-      FCache.Add(ACanvas, TDictionary<THandle, ISkImage>.Create);
-    FCache[ACanvas].Add(ABitmapHandle, AImage);
-  finally
-    {$IF CompilerVersion < 35}
-    TMonitor.Exit(FCacheLock);
-    {$ELSE}
-    FCacheLock.EndWrite;
-    {$ENDIF}
+type
+  { TRSP36957Workaround }
+
+  TRSP36957Workaround = record
+  strict private type
+    {$RTTI EXPLICIT METHODS([vcProtected])}
+    TContextOpenGLPatch = class(TCustomContextOpenGL)
+    protected
+      procedure DoCopyToBits(const Bits: Pointer; const Pitch: Integer; const ARect: TRect); override;
+    end;
+    {$RTTI METHODS([vcPublic, vcPublished])}
+  public
+    class procedure Apply; static;
   end;
-end;
 
-class procedure TGrCanvasCustom.TImageCache.Clear(
-  const ACanvas: TGrCanvasCustom);
-begin
-  {$IF CompilerVersion < 35}
-  TMonitor.Enter(FCacheLock);
-  {$ELSE}
-  FCacheLock.BeginWrite;
-  {$ENDIF}
-  try
-    FCache.Remove(ACanvas)
-  finally
-    {$IF CompilerVersion < 35}
-    TMonitor.Exit(FCacheLock);
-    {$ELSE}
-    FCacheLock.EndWrite;
-    {$ENDIF}
+{ TRSP36957Workaround }
+
+class procedure TRSP36957Workaround.Apply;
+
+  function HookVMT(const AVMTEntry, ATargetAddress: Pointer): Boolean;
+  var
+    LOriginEnd: Pointer;
+    LOriginStart: Pointer;
+    LPageSize: Integer;
+    LTargetEnd: Pointer;
+    LTargetStart: Pointer;
+  begin
+    LPageSize    := sysconf(_SC_PAGESIZE);
+    LOriginStart := Pointer(NativeUInt(AVMTEntry) and not (LPageSize - 1));
+    LOriginEnd   := Pointer((NativeUInt(AVMTEntry) + SizeOf(Pointer) + Cardinal(LPageSize) - 1) and not (LPageSize - 1));
+    LTargetStart := Pointer(NativeUInt(ATargetAddress) and not (LPageSize - 1));
+    LTargetEnd   := Pointer((NativeUInt(ATargetAddress) + SizeOf(Pointer) + Cardinal(LPageSize) - 1) and not (LPageSize - 1));
+    Result := (mprotect(LOriginStart, PByte(LOriginEnd) - PByte(LOriginStart), PROT_READ or PROT_WRITE) = 0) and (mprotect(LTargetStart, PByte(LTargetEnd) - PByte(LTargetStart), PROT_READ or PROT_WRITE) = 0);
+    if Result then
+      PPointer(AVMTEntry)^ := PPointer(ATargetAddress)^;
   end;
-end;
 
-class procedure TGrCanvasCustom.TImageCache.Finalize;
-begin
-  {$IF CompilerVersion < 35}
-  FCacheLock.Free;
-  {$ENDIF}
-  FCache.Free;
-end;
-
-class function TGrCanvasCustom.TImageCache.Get(const ACanvas: TGrCanvasCustom;
-  const ABitmapHandle: THandle): ISkImage;
-begin
-  {$IF CompilerVersion < 35}
-  TMonitor.Enter(FCacheLock);
-  {$ELSE}
-  FCacheLock.BeginRead;
-  {$ENDIF}
-  try
-    if (FCache.ContainsKey(ACanvas)) and (FCache[ACanvas].ContainsKey(ABitmapHandle)) then
-      Result := FCache[ACanvas][ABitmapHandle]
-    else
-      Result := nil;
-  finally
-    {$IF CompilerVersion < 35}
-    TMonitor.Exit(FCacheLock);
-    {$ELSE}
-    FCacheLock.EndRead;
-    {$ENDIF}
+  function TryGetVMT(const AClass: TClass; const AMethodName: string; out AVMT: Integer): Boolean;
+  var
+    LRttiContext: TRttiContext;
+    LRttiMethod: TRttiMethod;
+  begin
+    LRttiContext := TRttiContext.Create;
+    try
+      LRttiMethod := LRttiContext.GetType(AClass).AsInstance.GetMethod(AMethodName);
+      Result := Assigned(LRttiMethod);
+      if Result then
+        AVMT := LRttiMethod.VirtualIndex * SizeOf(Pointer);
+    finally
+      LRttiContext.Free;
+    end;
   end;
-end;
 
-class procedure TGrCanvasCustom.TImageCache.Initialize;
-begin
-  FCache     := TObjectDictionary<TGrCanvasCustom, TDictionary<THandle, ISkImage>>.Create([doOwnsValues]);
-  {$IF CompilerVersion < 35}
-  FCacheLock := TObject.Create;
-  {$ENDIF}
-end;
-
-class procedure TGrCanvasCustom.TImageCache.Remove(
-  const ABitmapHandle: THandle);
 var
-  LCanvas: TGrCanvasCustom;
+  LVMT: Integer;
 begin
-  {$IF CompilerVersion < 35}
-  TMonitor.Enter(FCacheLock);
-  {$ELSE}
-  FCacheLock.BeginWrite;
-  {$ENDIF}
-  try
-    for LCanvas in FCache.Keys do
-    begin
-      if FCache[LCanvas].ContainsKey(ABitmapHandle) then
+  if TContextManager.DefaultContextClass.InheritsFrom(TCustomContextOpenGL) and TryGetVMT(TContextOpenGLPatch, 'DoCopyToBits', LVMT) then
+    HookVMT(PByte(TContextManager.DefaultContextClass) + LVMT, PByte(TContextOpenGLPatch) + LVMT);
+end;
+
+{ TRSP36957Workaround.TContextOpenGLPatch }
+
+procedure TRSP36957Workaround.TContextOpenGLPatch.DoCopyToBits(
+  const Bits: Pointer; const Pitch: Integer; const ARect: TRect);
+var
+  I: Integer;
+  OldFBO: GLuint;
+  BitmapBuffer: PAlphaColorArray;
+  BitmapBufferLen: Integer;
+  Rect: TRect;
+begin
+  if Valid then
+  begin
+    BitmapBufferLen := Width * Height * 4;
+    GetMem(BitmapBuffer, BitmapBufferLen);
+    try
+      if FFrameBuf <> 0 then
       begin
-        TMonitor.Enter(LCanvas.FContextLock);
-        try
-          LCanvas.Prepare;
-          FCache[LCanvas].Remove(ABitmapHandle);
-        finally
-          TMonitor.Exit(LCanvas.FContextLock);
-        end;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, @OldFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, FFrameBuf);
       end;
+      glReadPixels(0, 0, Width, Height, GL_RGBA, GL_UNSIGNED_BYTE, BitmapBuffer);
+      Rect := TRect.Intersect(ARect, TRect.Create(0, 0, Width, Height));
+      for I := Rect.Top to Rect.Bottom - 1 do
+        Move(BitmapBuffer[(Height - 1 - I) * Width + Rect.Left], PAlphaColorArray(Bits)[I * (Pitch div 4) + Rect.Left],
+          Rect.Width * 4);
+      if FFrameBuf <> 0 then
+        glBindFramebuffer(GL_FRAMEBUFFER, OldFBO);
+    finally
+      FreeMem(BitmapBuffer);
+    end;
+    {$IF CompilerVersion < 34}
+    if GLHasAnyErrors then
+      RaiseContextExceptionFmt(@SErrorInContextMethod, ['DoCopyBits']);
+    {$ELSE}
+    TGlesDiagnostic.RaiseIfHasError(@SErrorInContextMethod, ['DoCopyBits']);
+    {$ENDIF}
+  end;
+end;
+
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$ENDREGION}
+
+{$REGION ' - Workaround RSP-37147'}
+// - ---------------------------------------------------------------------------
+// - WORKAROUND
+// - ---------------------------------------------------------------------------
+// -
+// - Description:
+// -   This code is a workaround intended to fix a bug involving the
+// -   TContextMetal.DoCopyToBits.
+// -
+// - Bug report:
+// -   https://quality.embarcadero.com/browse/RSP-37147
+// -
+// - ---------------------------------------------------------------------------
+{$IF CompilerVersion > 35}
+  {$MESSAGE WARN 'Check if the issue has been fixed'}
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$IFDEF MACOS}
+
+type
+  { TRSP37147Workaround }
+
+  TRSP37147Workaround = record
+  strict private type
+    {$RTTI EXPLICIT METHODS([vcProtected])}
+    TContextMetalPatch = class(TCustomContextMetal)
+    protected
+      {$IF CompilerVersion > 35}
+        {$MESSAGE WARN 'Check if the private fields of the FMX.Context.Metal.TContextMetal is the same below and in the same order'}
+      {$ENDIF}
+      FPipelineStateConfiguration: TPipelineStateConfiguration;
+      FDepthStencilStateConfiguration: TDepthStencilStateConfiguration;
+      FCommandQueue: MTLCommandQueue;
+      FCommandBuffer: MTLCommandBuffer;
+      FRenderPassDescriptor: MTLRenderPassDescriptor;
+      FRenderCommandEncoder: MTLRenderCommandEncoder;
+      FCurrentDrawable: CAMetalDrawable;
+      FOnScreenTexture: MTLTexture;
+      FStencilReferenceValue: LongWord;
+      FSampleCount: NSUInteger;
+      procedure DoCopyToBits(const Bits: Pointer; const Pitch: Integer; const ARect: TRect); override;
+    end;
+    {$RTTI METHODS([vcPublic, vcPublished])}
+  public
+    class procedure Apply; static;
+  end;
+
+{ TRSP37147Workaround }
+
+class procedure TRSP37147Workaround.Apply;
+
+  function HookVMT(const AVMTEntry, ATargetAddress: Pointer): Boolean;
+  var
+    LOriginEnd: Pointer;
+    LOriginStart: Pointer;
+    LPageSize: Integer;
+    LTargetEnd: Pointer;
+    LTargetStart: Pointer;
+  begin
+    LPageSize    := sysconf(_SC_PAGESIZE);
+    LOriginStart := Pointer(NativeUInt(AVMTEntry) and not (LPageSize - 1));
+    LOriginEnd   := Pointer((NativeUInt(AVMTEntry) + SizeOf(Pointer) + Cardinal(LPageSize) - 1) and not (LPageSize - 1));
+    LTargetStart := Pointer(NativeUInt(ATargetAddress) and not (LPageSize - 1));
+    LTargetEnd   := Pointer((NativeUInt(ATargetAddress) + SizeOf(Pointer) + Cardinal(LPageSize) - 1) and not (LPageSize - 1));
+    Result := (mprotect(LOriginStart, PByte(LOriginEnd) - PByte(LOriginStart), PROT_READ or PROT_WRITE) = 0) and (mprotect(LTargetStart, PByte(LTargetEnd) - PByte(LTargetStart), PROT_READ or PROT_WRITE) = 0);
+    if Result then
+      PPointer(AVMTEntry)^ := PPointer(ATargetAddress)^;
+  end;
+
+  function TryGetVMT(const AClass: TClass; const AMethodName: string; out AVMT: Integer): Boolean;
+  var
+    LRttiContext: TRttiContext;
+    LRttiMethod: TRttiMethod;
+  begin
+    LRttiContext := TRttiContext.Create;
+    try
+      LRttiMethod := LRttiContext.GetType(AClass).AsInstance.GetMethod(AMethodName);
+      Result := Assigned(LRttiMethod);
+      if Result then
+        AVMT := LRttiMethod.VirtualIndex * SizeOf(Pointer);
+    finally
+      LRttiContext.Free;
+    end;
+  end;
+
+var
+  LVMT: Integer;
+begin
+  if TContextManager.DefaultContextClass.InheritsFrom(TCustomContextMetal) and TryGetVMT(TContextMetalPatch, 'DoCopyToBits', LVMT) then
+    HookVMT(PByte(TContextManager.DefaultContextClass) + LVMT, PByte(TContextMetalPatch) + LVMT);
+end;
+
+{ TRSP37147Workaround.TContextMetalPatch }
+
+procedure TRSP37147Workaround.TContextMetalPatch.DoCopyToBits(
+  const Bits: Pointer; const Pitch: Integer; const ARect: TRect);
+
+  function CreateRegion(const ARect: TRect; const AScale: Single): MTLRegion;
+  begin
+    if SameValue(AScale, 1, TEpsilon.Scale) then
+    begin
+      Result.origin.x := ARect.left;
+      Result.origin.y := ARect.top;
+      Result.size.width := ARect.Width;
+      Result.size.height := ARect.Height;
+    end
+    else
+    begin
+      Result.origin.x := Round(ARect.Left * Scale);
+      Result.origin.y := Round(ARect.Top * Scale);
+      Result.size.width := Round(ARect.Width * Scale);
+      Result.size.height := Round(ARect.Height * Scale);
+    end;
+    Result.origin.z := 0;
+    Result.size.depth := 1;
+  end;
+
+  procedure SynchronizeResources(const ATexture: MTLTexture);
+  var
+    CommandBuffer: MTLCommandBuffer;
+    LBlitCommandEncoder: MTLBlitCommandEncoder;
+  begin
+    CommandBuffer := FCommandQueue.CommandBuffer;
+
+    if CommandBuffer = nil then
+      Exit;
+
+    LBlitCommandEncoder := CommandBuffer.blitCommandEncoder;
+    LBlitCommandEncoder.synchronizeResource(ATexture);
+    LBlitCommandEncoder.endEncoding;
+    CommandBuffer.commit;
+    CommandBuffer.waitUntilCompleted;
+  end;
+
+var
+  LCopyRect: TRect;
+  LTexture: MTLTexture;
+  LRegion: MTLRegion;
+begin
+  LTexture := nil;
+
+  if FCommandBuffer <> nil then
+    FCommandBuffer.waitUntilCompleted;
+
+  LCopyRect := TRect.Intersect(ARect, TRect.Create(0, 0, Width, Height));
+  if Texture <> nil then
+  begin
+    LTexture := TMTLTexture.Wrap(Pointer(Texture.Handle));
+    LRegion := CreateRegion(LCopyRect, 1);
+  end
+  else if FOnScreenTexture <> nil then
+  begin
+    LTexture := FOnScreenTexture;
+    LRegion := CreateRegion(LCopyRect, Scale);
+  end;
+
+  if LTexture <> nil then
+  begin
+    // Synchronizing a Managed Resource between GPU and CPU
+    if LTexture.storageMode = MTLStorageModeManaged then
+      SynchronizeResources(LTexture);
+    // Get texture data
+    LTexture.getBytesBytesPerRowFromRegionMipmapLevel(
+      Bits, // pixelBytes: Pointer;
+      Pitch, // bytesPerRow: NSUInteger;
+      LRegion, // fromRegion: MTLRegion;
+      0); // mipmapLevel: NSUInteger
+  end;
+end;
+
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$ENDREGION}
+
+{$REGION ' - Workaround RSP-37829'}
+// - ---------------------------------------------------------------------------
+// - WORKAROUND
+// - ---------------------------------------------------------------------------
+// -
+// - Description:
+// -   This code is a workaround intended to fix a bug involving the
+// -   wrong render of effects/filters using Metal.
+// -
+// - Bug report:
+// -   https://quality.embarcadero.com/browse/RSP-37829
+// -
+// - ---------------------------------------------------------------------------
+{$IF CompilerVersion > 35}
+  {$MESSAGE WARN 'Check if the issue has been fixed'}
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$IFDEF MACOS}
+
+type
+  { TRSP37829Workaround }
+
+  TRSP37829Workaround = record
+  strict private class var
+    FOriginalDoEndScene: Pointer;
+  strict private type
+    TDoEndSceneProc = procedure of object;
+
+    {$RTTI EXPLICIT METHODS([vcProtected])}
+    TContextMetalPatch = class(TCustomContextMetal)
+    protected
+      {$IF CompilerVersion > 35}
+        {$MESSAGE WARN 'Check if the private fields of the FMX.Context.Metal.TContextMetal is the same below and in the same order'}
+      {$ENDIF}
+      FPipelineStateConfiguration: TPipelineStateConfiguration;
+      FDepthStencilStateConfiguration: TDepthStencilStateConfiguration;
+      FCommandQueue: MTLCommandQueue;
+      FCommandBuffer: MTLCommandBuffer;
+      FRenderPassDescriptor: MTLRenderPassDescriptor;
+      FRenderCommandEncoder: MTLRenderCommandEncoder;
+      FCurrentDrawable: CAMetalDrawable;
+      FOnScreenTexture: MTLTexture;
+      FStencilReferenceValue: LongWord;
+      FSampleCount: NSUInteger;
+      procedure DoEndScene; override;
+    end;
+    {$RTTI METHODS([vcPublic, vcPublished])}
+  public
+    class procedure Apply; static;
+  end;
+
+{ TRSP37829Workaround }
+
+class procedure TRSP37829Workaround.Apply;
+
+  function HookVMT(const AVMTEntry, ATargetAddress: Pointer): Boolean;
+  var
+    LOriginEnd: Pointer;
+    LOriginStart: Pointer;
+    LPageSize: Integer;
+    LTargetEnd: Pointer;
+    LTargetStart: Pointer;
+  begin
+    LPageSize    := sysconf(_SC_PAGESIZE);
+    LOriginStart := Pointer(NativeUInt(AVMTEntry) and not (LPageSize - 1));
+    LOriginEnd   := Pointer((NativeUInt(AVMTEntry) + SizeOf(Pointer) + Cardinal(LPageSize) - 1) and not (LPageSize - 1));
+    LTargetStart := Pointer(NativeUInt(ATargetAddress) and not (LPageSize - 1));
+    LTargetEnd   := Pointer((NativeUInt(ATargetAddress) + SizeOf(Pointer) + Cardinal(LPageSize) - 1) and not (LPageSize - 1));
+    Result := (mprotect(LOriginStart, PByte(LOriginEnd) - PByte(LOriginStart), PROT_READ or PROT_WRITE) = 0) and (mprotect(LTargetStart, PByte(LTargetEnd) - PByte(LTargetStart), PROT_READ or PROT_WRITE) = 0);
+    if Result then
+      PPointer(AVMTEntry)^ := PPointer(ATargetAddress)^;
+  end;
+
+  function TryGetVMT(const AClass: TClass; const AMethodName: string; out AVMT: Integer): Boolean;
+  var
+    LRttiContext: TRttiContext;
+    LRttiMethod: TRttiMethod;
+  begin
+    LRttiContext := TRttiContext.Create;
+    try
+      LRttiMethod := LRttiContext.GetType(AClass).AsInstance.GetMethod(AMethodName);
+      Result := Assigned(LRttiMethod);
+      if Result then
+        AVMT := LRttiMethod.VirtualIndex * SizeOf(Pointer);
+    finally
+      LRttiContext.Free;
+    end;
+  end;
+
+var
+  LVMT: Integer;
+begin
+  if TContextManager.DefaultContextClass.InheritsFrom(TCustomContextMetal) and TryGetVMT(TContextMetalPatch, 'DoEndScene', LVMT) then
+  begin
+    FOriginalDoEndScene := PPointer(PByte(TContextManager.DefaultContextClass) + LVMT)^;
+    HookVMT(PByte(TContextManager.DefaultContextClass) + LVMT, PByte(TContextMetalPatch) + LVMT);
+  end;
+end;
+
+{ TRSP37829Workaround.TContextMetalPatch }
+
+procedure TRSP37829Workaround.TContextMetalPatch.DoEndScene;
+var
+  LOriginalMethod: TMethod;
+begin
+  LOriginalMethod.Data := Self;
+  LOriginalMethod.Code := FOriginalDoEndScene;
+  TDoEndSceneProc(LOriginalMethod)();
+  if Assigned(FCommandBuffer) then
+    FCommandBuffer.waitUntilCompleted;
+end;
+
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$ENDREGION}
+
+{$REGION ' - Workaround RSP-37660'}
+// - ---------------------------------------------------------------------------
+// - WORKAROUND
+// - ---------------------------------------------------------------------------
+// -
+// - Description:
+// -   The functions BitmapToUIImage and UIImageToBitmap of unit FMX.Helpers.iOS
+// -   are ignoring the PixelFormat of bitmaps. This issue generates wrong
+// -   colors in several parts of the code, and this workaround will fix some
+// -   important services that use these functions: IFMXTakenImageService,
+// -   IFMXCameraService, IFMXPhotoLibrary and IFMXShareSheetActionsService.
+// -
+// - Bug report:
+// -   https://quality.embarcadero.com/browse/RSP-37651
+// -   https://quality.embarcadero.com/browse/RSP-37660
+// -
+// - ---------------------------------------------------------------------------
+{$IF CompilerVersion > 35}
+  {$MESSAGE WARN 'Check if the issue has been fixed'}
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$IFDEF IOS}
+
+type
+  { TRSP37660Workaround }
+
+  TRSP37660Workaround = record
+  strict private type
+    {$IF CompilerVersion > 35}
+      {$MESSAGE WARN 'Check if the unit "FMX.MediaLibrary.IOS" has been changed, and apply all changes to this workaround'}
+    {$ENDIF}
+    TImageDelegate = class;
+    TImageManagerCocoa = class;
+
+    TSaveImageRequest = class
+    private
+      [Weak] FImageManager: TImageManagerCocoa;
+      FImage: UIImage;
+      FOnCompletion: TWriteImageCompletionEvent;
+      procedure PerformResultOfSavingPhoto(assetURL: NSURL; error: NSError);
+    public
+      constructor Create(const AImageManager: TImageManagerCocoa; const AImage: UIImage; const AHandler: TWriteImageCompletionEvent);
+      procedure Save;
+    end;
+
+    TImageManagerCocoa = class(TInterfacedObject, IFMXTakenImageService, IFMXCameraService, IFMXPhotoLibrary)
+    private
+      FImageDelegate: TImageDelegate;
+      FImagePicker: UIImagePickerController;
+      FSaveImageRequests: TList<TSaveImageRequest>;
+    protected
+      procedure TakeImage(const AControl: TControl; const ASourceType: UIImagePickerControllerSourceType);
+      procedure SaveImageToSavedPhotosAlbum(const AImage: UIImage; const AOnResult: TWriteImageCompletionEvent = nil);
+    public
+      constructor Create;
+      destructor Destroy; override;
+      class function IsAvailableSourceType(const ASourceType: UIImagePickerControllerSourceType): Boolean;
+      { IFMXTakenImage }
+      procedure TakeImageFromLibrary(const AControl: TControl; const ARequiredResolution: TSize; const AEditable: Boolean;
+        const AOnDidFinishTaking: TOnDidFinishTaking; const AOnDidCancelTaking: TOnDidCancelTaking); overload;
+      procedure TakeImageFromLibrary(const AControl: TControl; const AParams: TParamsPhotoQuery); overload;
+      { IFMXPhotoLibrary }
+      procedure AddImageToSavedPhotosAlbum(const ABitmap: TBitmap; const AWriteImageCompletionEvent: TWriteImageCompletionEvent = nil);
+      { IFMXCameraService }
+      procedure TakePhoto(const AControl: TControl; const ARequiredResolution: TSize; const AEditable: Boolean;
+        const AOnDidFinishTaking: TOnDidFinishTaking; const AOnDidCancelTaking: TOnDidCancelTaking); overload;
+      procedure TakePhoto(const AControl: TControl; const AParams: TParamsPhotoQuery); overload;
+    end;
+
+    TImageDelegate = class(TOCLocal, UIImagePickerControllerDelegate)
+    private
+      [Weak] FImageManager: TImageManagerCocoa;
+      FParams: TParamsPhotoQuery;
+    protected
+      procedure DoDidFinishTaking(const AImage: TBitmap);
+      procedure DoDidCancelTaking;
+      procedure HidePicker(const APicker: UIImagePickerController);
+      function GetAngleOfImageOrientation(const AImage: UIImage): Single;
+    public
+      constructor Create(const AImageManager: TImageManagerCocoa);
+      property Params: TParamsPhotoQuery read FParams write FParams;
+      { UIImagePickerControllerDelegate }
+      procedure imagePickerController(picker: UIImagePickerController; didFinishPickingImage: UIImage; editingInfo: NSDictionary); overload; cdecl;
+      procedure imagePickerController(picker: UIImagePickerController; didFinishPickingMediaWithInfo: NSDictionary); overload; cdecl;
+      procedure imagePickerControllerDidCancel(picker: UIImagePickerController); cdecl;
+    end;
+
+    TShareService = class(TInterfacedObject, IFMXShareSheetActionsService)
+    strict private
+      FActivityViewController: UIActivityViewController;
+      FActivityItems: NSMutableArray;
+      FPopoverController: UIPopoverController;
+    public
+      constructor Create;
+      destructor Destroy; override;
+      procedure ReleaseOldSharingController;
+      { IFMXShareSheetActionsService }
+      procedure Share(const AControl: TControl; const AText: string; const ABitmap: TBitmap);
+    end;
+
+  strict private
+    class procedure SetPixelFormatRGBA(const ABitmap: TBitmap); static;
+  public
+    class procedure Apply; static;
+  end;
+
+{ TRSP37660Workaround }
+
+class procedure TRSP37660Workaround.Apply;
+var
+  LImageManager: TImageManagerCocoa;
+begin
+  TPlatformServices.Current.RemovePlatformService(IFMXShareSheetActionsService);
+  TPlatformServices.Current.RemovePlatformService(IFMXPhotoLibrary);
+  TPlatformServices.Current.RemovePlatformService(IFMXTakenImageService);
+  TPlatformServices.Current.RemovePlatformService(IFMXCameraService);
+  LImageManager := TImageManagerCocoa.Create;
+  if TImageManagerCocoa.IsAvailableSourceType(UIImagePickerControllerSourceTypeCamera) then
+    TPlatformServices.Current.AddPlatformService(IFMXCameraService, LImageManager);
+  if TImageManagerCocoa.IsAvailableSourceType(UIImagePickerControllerSourceTypeSavedPhotosAlbum) then
+    TPlatformServices.Current.AddPlatformService(IFMXTakenImageService, LImageManager);
+  TPlatformServices.Current.AddPlatformService(IFMXPhotoLibrary, LImageManager);
+  if TOSVersion.Check(6, 0) then
+    TPlatformServices.Current.AddPlatformService(IFMXShareSheetActionsService, IInterface(TShareService.Create));
+end;
+
+class procedure TRSP37660Workaround.SetPixelFormatRGBA(const ABitmap: TBitmap);
+var
+  LBitmapData: TBitmapData;
+begin
+  if Assigned(ABitmap) and (not ABitmap.IsEmpty) and ABitmap.Map(TMapAccess.ReadWrite, LBitmapData) then
+  begin
+    try
+      ChangePixelFormat(LBitmapData.Data, LBitmapData.Data, (LBitmapData.Pitch * LBitmapData.Height) div LBitmapData.BytesPerPixel,
+        LBitmapData.PixelFormat, TPixelFormat.RGBA);
+    finally
+      ABitmap.Unmap(LBitmapData);
+    end;
+  end;
+end;
+
+{ TRSP37660Workaround.TSaveImageRequest }
+
+constructor TRSP37660Workaround.TSaveImageRequest.Create(
+  const AImageManager: TImageManagerCocoa; const AImage: UIImage;
+  const AHandler: TWriteImageCompletionEvent);
+begin
+  if AImageManager = nil then
+    raise EArgumentNilException.CreateFmt(SWrongParameter, ['AImageManager']);
+  if AImage = nil then
+    raise EArgumentNilException.CreateFmt(SWrongParameter, ['AImage']);
+  FImageManager := AImageManager;
+  FImage := AImage;
+  FOnCompletion := AHandler;
+end;
+
+procedure TRSP37660Workaround.TSaveImageRequest.PerformResultOfSavingPhoto(
+  assetURL: NSURL; error: NSError);
+begin
+  try
+    if Assigned(FOnCompletion) then
+      if error <> nil then
+        FOnCompletion(False, NSStrToStr(error.localizedDescription))
+      else
+        FOnCompletion(True, SImageSaved);
+  finally
+    // ARC will remove instance of this object, when we remove the single link from FSaveQueue
+    FImageManager.FSaveImageRequests.Remove(Self);
+  end;
+end;
+
+procedure TRSP37660Workaround.TSaveImageRequest.Save;
+var
+  AssetsLibrary: ALAssetsLibrary;
+begin
+  AssetsLibrary := TALAssetsLibrary.Create;
+  try
+    AssetsLibrary.writeImageToSavedPhotosAlbum(FImage.CGImage, FImage.imageOrientation, PerformResultOfSavingPhoto);
+  finally
+    AssetsLibrary.release;
+  end;
+end;
+
+{ TRSP37660Workaround.TImageManagerCocoa }
+
+procedure TRSP37660Workaround.TImageManagerCocoa.AddImageToSavedPhotosAlbum(
+  const ABitmap: TBitmap;
+  const AWriteImageCompletionEvent: TWriteImageCompletionEvent);
+var
+  OCImage: UIImage;
+  LBitmap: TBitmap;
+begin
+  LBitmap := TBitmap.Create;
+  try
+    LBitmap.Assign(ABitmap);
+    SetPixelFormatRGBA(LBitmap);
+    OCImage := BitmapToUIImage(LBitmap);
+    try
+      SaveImageToSavedPhotosAlbum(OCImage, AWriteImageCompletionEvent);
+    finally
+      OCImage.release;
     end;
   finally
-    {$IF CompilerVersion < 35}
-    TMonitor.Exit(FCacheLock);
-    {$ELSE}
-    FCacheLock.EndWrite;
+    LBitmap.Free;
+  end;
+end;
+
+constructor TRSP37660Workaround.TImageManagerCocoa.Create;
+begin
+  inherited Create;
+  FImageDelegate := TImageDelegate.Create(Self);
+  FSaveImageRequests := TList<TSaveImageRequest>.Create;
+end;
+
+destructor TRSP37660Workaround.TImageManagerCocoa.Destroy;
+begin
+  FSaveImageRequests.Free;
+  if FImagePicker <> nil then
+  begin
+    FImagePicker.release;
+    FImagePicker.setDelegate(nil);
+  end;
+  FImageDelegate.DisposeOf;
+  inherited Destroy;
+end;
+
+class function TRSP37660Workaround.TImageManagerCocoa.IsAvailableSourceType(
+  const ASourceType: UIImagePickerControllerSourceType): Boolean;
+begin
+  Result := TUIImagePickerController.OCClass.isSourceTypeAvailable(ASourceType);
+end;
+
+procedure TRSP37660Workaround.TImageManagerCocoa.SaveImageToSavedPhotosAlbum(
+  const AImage: UIImage; const AOnResult: TWriteImageCompletionEvent);
+var
+  SaveImageRequest: TSaveImageRequest;
+begin
+  SaveImageRequest := TSaveImageRequest.Create(Self, AImage, AOnResult);
+  FSaveImageRequests.Add(SaveImageRequest);
+  SaveImageRequest.Save;
+end;
+
+procedure TRSP37660Workaround.TImageManagerCocoa.TakeImage(
+  const AControl: TControl;
+  const ASourceType: UIImagePickerControllerSourceType);
+var
+  Window: UIWindow;
+begin
+  if IsAvailableSourceType(ASourceType) then
+  begin
+    if FImagePicker <> nil then
+    begin
+      FImagePicker.setDelegate(nil);
+      FImagePicker.release;
+    end;
+    FImagePicker := TUIImagePickerController.Create;
+    FImagePicker.retain;
+    FImagePicker.setDelegate(FImageDelegate.GetObjectID);
+    FImagePicker.setSourceType(ASourceType);
+    FImagePicker.setAllowsEditing(FImageDelegate.Params.Editable);
+    if IsPad and (ASourceType <> UIImagePickerControllerSourceTypeCamera) then
+      FImagePicker.setModalPresentationStyle(UIModalPresentationFormSheet);
+    Window := SharedApplication.keyWindow;
+    if (Window <> nil) and (Window.rootViewController <> nil) then
+      Window.rootViewController.presentModalViewController(FImagePicker, True);
+  end;
+end;
+
+procedure TRSP37660Workaround.TImageManagerCocoa.TakeImageFromLibrary(
+  const AControl: TControl; const AParams: TParamsPhotoQuery);
+var
+  ParamsTmp: TParamsPhotoQuery;
+begin
+  ParamsTmp := AParams;
+  ParamsTmp.NeedSaveToAlbum := False;
+  FImageDelegate.Params := ParamsTmp;
+  TakeImage(AControl, UIImagePickerControllerSourceTypePhotoLibrary)
+end;
+
+procedure TRSP37660Workaround.TImageManagerCocoa.TakeImageFromLibrary(
+  const AControl: TControl; const ARequiredResolution: TSize;
+  const AEditable: Boolean; const AOnDidFinishTaking: TOnDidFinishTaking;
+  const AOnDidCancelTaking: TOnDidCancelTaking);
+var
+  ParamTmp: TParamsPhotoQuery;
+begin
+  ParamTmp.Editable := AEditable;
+  ParamTmp.RequiredResolution := ARequiredResolution;
+  ParamTmp.NeedSaveToAlbum := False;
+  ParamTmp.OnDidFinishTaking := AOnDidFinishTaking;
+  ParamTmp.OnDidCancelTaking := AOnDidCancelTaking;
+  TakeImageFromLibrary(AControl, ParamTmp);
+end;
+
+procedure TRSP37660Workaround.TImageManagerCocoa.TakePhoto(
+  const AControl: TControl; const ARequiredResolution: TSize;
+  const AEditable: Boolean; const AOnDidFinishTaking: TOnDidFinishTaking;
+  const AOnDidCancelTaking: TOnDidCancelTaking);
+var
+  ParamTmp: TParamsPhotoQuery;
+begin
+  ParamTmp.Editable := AEditable;
+  ParamTmp.RequiredResolution := ARequiredResolution;
+  ParamTmp.NeedSaveToAlbum := False;
+  ParamTmp.OnDidFinishTaking := AOnDidFinishTaking;
+  ParamTmp.OnDidCancelTaking := AOnDidCancelTaking;
+  TakePhoto(AControl, ParamTmp);
+end;
+
+procedure TRSP37660Workaround.TImageManagerCocoa.TakePhoto(
+  const AControl: TControl; const AParams: TParamsPhotoQuery);
+begin
+  FImageDelegate.Params := AParams;
+  TakeImage(AControl, UIImagePickerControllerSourceTypeCamera);
+end;
+
+{ TRSP37660Workaround.TImageDelegate }
+
+constructor TRSP37660Workaround.TImageDelegate.Create(
+  const AImageManager: TImageManagerCocoa);
+begin
+  inherited Create;
+  FImageManager := AImageManager;
+end;
+
+procedure TRSP37660Workaround.TImageDelegate.DoDidCancelTaking;
+begin
+  if Assigned(Params.OnDidCancelTaking) then
+    Params.OnDidCancelTaking;
+end;
+
+procedure TRSP37660Workaround.TImageDelegate.DoDidFinishTaking(
+  const AImage: TBitmap);
+var
+  LBitmap: TBitmap;
+begin
+  LBitmap := TBitmap.Create;
+  try
+    LBitmap.Assign(AImage);
+    SetPixelFormatRGBA(LBitmap);
+    if Assigned(Params.OnDidFinishTaking) then
+      Params.OnDidFinishTaking(LBitmap);
+  finally
+    LBitmap.Free;
+  end;
+end;
+
+function TRSP37660Workaround.TImageDelegate.GetAngleOfImageOrientation(
+  const AImage: UIImage): Single;
+begin
+  case AImage.imageOrientation of
+    UIImageOrientationDown,
+    UIImageOrientationDownMirrored:
+      Result := 180;
+    UIImageOrientationLeft,
+    UIImageOrientationLeftMirrored:
+      Result := -90;
+    UIImageOrientationRight,
+    UIImageOrientationRightMirrored:
+      Result := 90;
+    UIImageOrientationUp,
+    UIImageOrientationUpMirrored:
+      Result := 0;
+  else
+    Result := 0;
+  end;
+end;
+
+procedure TRSP37660Workaround.TImageDelegate.HidePicker(
+  const APicker: UIImagePickerController);
+begin
+  APicker.dismissModalViewControllerAnimated(True);
+end;
+
+procedure TRSP37660Workaround.TImageDelegate.imagePickerController(
+  picker: UIImagePickerController; didFinishPickingImage: UIImage;
+  editingInfo: NSDictionary);
+var
+  Bitmap: TBitmap;
+  RotationAngle: Single;
+begin
+  HidePicker(picker);
+  RotationAngle := GetAngleOfImageOrientation(didFinishPickingImage);
+  Bitmap := UIImageToBitmap(didFinishPickingImage, RotationAngle, Params.RequiredResolution);
+  try
+    DoDidFinishTaking(Bitmap);
+    if Params.NeedSaveToAlbum then
+      FImageManager.SaveImageToSavedPhotosAlbum(didFinishPickingImage);
+  finally
+    Bitmap.DisposeOf;
+  end;
+end;
+
+procedure TRSP37660Workaround.TImageDelegate.imagePickerController(
+  picker: UIImagePickerController; didFinishPickingMediaWithInfo: NSDictionary);
+var
+  Bitmap: TBitmap;
+  ImageTmp: UIImage;
+  RotationAngle: Single;
+begin
+  HidePicker(picker);
+  if Params.Editable then
+    ImageTmp := TUIImage.Wrap(didFinishPickingMediaWithInfo.objectForKey((UIImagePickerControllerEditedImage as ILocalObject).GetObjectID))
+  else
+    ImageTmp := TUIImage.Wrap(didFinishPickingMediaWithInfo.objectForKey((UIImagePickerControllerOriginalImage as ILocalObject).GetObjectID));
+  RotationAngle := GetAngleOfImageOrientation(ImageTmp);
+  Bitmap := UIImageToBitmap(ImageTmp, RotationAngle, Params.RequiredResolution);
+  try
+    DoDidFinishTaking(Bitmap);
+    if Params.NeedSaveToAlbum then
+      FImageManager.SaveImageToSavedPhotosAlbum(ImageTmp);
+  finally
+    Bitmap.DisposeOf;
+  end;
+end;
+
+procedure TRSP37660Workaround.TImageDelegate.imagePickerControllerDidCancel(
+  picker: UIImagePickerController);
+begin
+  DoDidCancelTaking;
+  HidePicker(picker);
+end;
+
+{ TRSP37660Workaround.TShareService }
+
+constructor TRSP37660Workaround.TShareService.Create;
+begin
+  inherited;
+  FActivityItems := TNSMutableArray.Create;
+end;
+
+destructor TRSP37660Workaround.TShareService.Destroy;
+begin
+  ReleaseOldSharingController;
+  FActivityItems.release;
+  inherited;
+end;
+
+procedure TRSP37660Workaround.TShareService.ReleaseOldSharingController;
+var
+  Pop: UIPopoverController;
+begin
+  if FPopoverController <> nil then
+    FPopoverController.release;
+  Pop := FPopoverController;
+
+  if FActivityViewController <> nil then
+  begin
+    FActivityViewController.release;
+    FActivityViewController := nil;
+  end;
+end;
+
+procedure TRSP37660Workaround.TShareService.Share(const AControl: TControl;
+  const AText: string; const ABitmap: TBitmap);
+
+  procedure ShowForPhone;
+  var
+    Window: UIWindow;
+  begin
+    Window := SharedApplication.keyWindow;
+    if (Window <> nil) and (Window.rootViewController <> nil) then
+      Window.rootViewController.presentModalViewController(FActivityViewController, True);
+  end;
+
+  procedure ShowForPad;
+  var
+    Window: UIWindow;
+    PopoverRect: CGRect;
+    AbsolutePos: TPointF;
+  begin
+    Window := SharedApplication.keyWindow;
+    if AControl <> nil then
+    begin
+      AbsolutePos := AControl.LocalToAbsolute(PointF(0, 0));
+      if AControl.Scene <> nil then
+        AbsolutePos := AControl.Scene.LocalToScreen(AbsolutePos);
+      PopoverRect := CGRectMake(AbsolutePos.X, AbsolutePos.Y, AControl.Width, AControl.Height);
+    end
+    else
+      PopoverRect := CGRectMake(0, 0, 0, 0);
+    FPopoverController := TUIPopoverController.Alloc;
+    FPopoverController.initWithContentViewController(FActivityViewController);
+    FPopoverController.presentPopoverFromRect(PopoverRect, Window.rootViewController.View, UIPopoverArrowDirectionAny, True);
+  end;
+
+  procedure ShowActionsSheet;
+  begin
+    if IsPad then
+      ShowForPad
+    else
+      ShowForPhone;
+  end;
+
+var
+  OCImage: UIImage;
+  LBitmap: TBitmap;
+begin
+  Assert((ABitmap <> nil) or not AText.IsEmpty);
+  FActivityItems.removeAllObjects;
+
+  if not AText.IsEmpty then
+    FActivityItems.addObject((StrToNSStr(AText) as ILocalObject).GetObjectID);
+
+  if (ABitmap <> nil) and not ABitmap.IsEmpty then
+  begin
+    LBitmap := TBitmap.Create;
+    try
+      LBitmap.Assign(ABitmap);
+      SetPixelFormatRGBA(LBitmap);
+      OCImage := BitmapToUIImage(LBitmap);
+    finally
+      LBitmap.Free;
+    end;
+    FActivityItems.addObject((OCImage as ILocalObject).GetObjectID);
+  end;
+
+  try
+    if FActivityItems.count > 0 then
+    begin
+      ReleaseOldSharingController;
+      FActivityViewController := TUIActivityViewController.alloc;
+      FActivityViewController.initWithActivityItems(FActivityItems , nil);
+      ShowActionsSheet;
+    end;
+  finally
+    if OCImage <> nil then
+      OCImage.release;
+  end;
+end;
+
+{$ENDIF}
+// - ---------------------------------------------------------------------------
+{$ENDREGION}
+
+{$REGION '- Canvas Registration'}
+
+type
+  { TSkCanvasService }
+
+  TSkCanvasService = class(TInterfacedObject, IFMXCanvasService)
+  strict private class var
+    FDefaultPixelFormat: TPixelFormat;
+  strict private
+    FCanvasClass: TSkCanvasClass;
+    FCurrent: IFMXCanvasService;
+  {$IFDEF DEBUG}
+  strict private
+    FGlobalUseSkiaInRegistration: Boolean;
+    FMainFormChangedMessageId: Integer;
+    procedure MainFormChangedChangeHandler(const ASender: TObject; const AMessage: System.Messaging.TMessage);
+  {$ENDIF}
+  strict private
+    procedure RegisterCanvasClasses;
+    procedure UnregisterCanvasClasses;
+    class function GetCanvasClass: TSkCanvasClass; static; inline;
+  public
+    constructor Create(const ACurrent: IFMXCanvasService);
+    {$IFDEF DEBUG}
+    destructor Destroy; override;
     {$ENDIF}
+    class property DefaultPixelFormat: TPixelFormat read FDefaultPixelFormat;
+  end;
+
+{ TSkCanvasService }
+
+constructor TSkCanvasService.Create(const ACurrent: IFMXCanvasService);
+begin
+  inherited Create;
+  FCurrent := ACurrent;
+  {$IFDEF DEBUG}
+  FMainFormChangedMessageId := TMessageManager.DefaultManager.SubscribeToMessage(TMainFormChangedMessage, MainFormChangedChangeHandler);
+  {$ENDIF}
+end;
+
+{$IFDEF DEBUG}
+
+destructor TSkCanvasService.Destroy;
+begin
+  if FMainFormChangedMessageId > 0 then
+    TMessageManager.DefaultManager.Unsubscribe(TMainFormChangedMessage, FMainFormChangedMessageId);
+  inherited;
+end;
+
+{$ENDIF}
+
+class function TSkCanvasService.GetCanvasClass: TSkCanvasClass;
+begin
+  {$IF DEFINED(MSWINDOWS)}
+  if (GlobalUseSkiaRasterWhenAvailable) or (not TGrCanvasGL.Initialize) then
+  begin
+    if not TSkCanvasRasterWindows.Initialize then
+      Exit(nil);
+    Result := TSkCanvasRasterWindows
+  end
+  else
+    Result := TGrCanvasGL;
+  {$ELSE}
+  {$IF DEFINED(MACOS)}
+  if GlobalUseMetal then
+    Result := TGrCanvasMetal
+  else
+    {$IFDEF IOS}
+    Result := TGrCanvasGL;
+    {$ELSE}
+    Result := TSkCanvasRasterMacOS;
+    {$ENDIF}
+  {$ELSEIF DEFINED(ANDROID)}
+  Result := TGrCanvasGL;
+  {$ELSE}
+  Result := nil;
+  {$ENDIF}
+  if Assigned(Result) and not Result.Initialize then
+    Result := nil;
+  {$ENDIF}
+end;
+
+{$IFDEF DEBUG}
+
+procedure TSkCanvasService.MainFormChangedChangeHandler(const ASender: TObject;
+  const AMessage: System.Messaging.TMessage);
+begin
+  TMessageManager.DefaultManager.Unsubscribe(TMainFormChangedMessage, FMainFormChangedMessageId);
+  FMainFormChangedMessageId := 0;
+  if FGlobalUseSkiaInRegistration <> GlobalUseSkia then
+  begin
+    raise ESkCanvas.Create('Your declaration of GlobalUseSkia has no effect because the canvas service '+
+      'has already been started. In this case, just create a unit in the project like "Project.Startup.pas", '+
+      'place the GlobalUseSkia declaration in the initialization of this new unit, and declare this new unit '+
+      'before any other unit of yours in the .dpr, that is, right after FMX.Forms.');
+  end;
+end;
+
+{$ENDIF}
+
+procedure TSkCanvasService.RegisterCanvasClasses;
+begin
+  if Assigned(FCurrent) then
+  begin
+    if GlobalUseSkia then
+    begin
+      FCanvasClass := GetCanvasClass;
+      if Assigned(FCanvasClass) then
+      begin
+        // Ensuring that our canvas will be chosen as the default
+        TCanvasManager.EnableSoftwareCanvas(True);
+        TCanvasManager.RegisterCanvas(FCanvasClass, True, False);
+        TTextLayoutManager.RegisterTextLayout(TSkTextLayout, FCanvasClass);
+        if not GlobalDisableSkiaCodecsReplacement then
+        begin
+          TBitmapCodecManager.UnregisterBitmapCodecClass('.jpg');
+          TBitmapCodecManager.RegisterBitmapCodecClass('.jpg', SVJPGImages, True, TSkBitmapHandleCodec);
+          TBitmapCodecManager.UnregisterBitmapCodecClass('.jpeg');
+          TBitmapCodecManager.RegisterBitmapCodecClass('.jpeg', SVJPGImages, True, TSkBitmapHandleCodec);
+          TBitmapCodecManager.UnregisterBitmapCodecClass('.png');
+          TBitmapCodecManager.RegisterBitmapCodecClass('.png', SVPNGImages, True, TSkBitmapHandleCodec);
+        end;
+        // Apply workarounds
+        {$IF DEFINED(ANDROID) or DEFINED(IOS)}
+        TRSP36957Workaround.Apply;
+        {$ENDIF}
+        {$IFDEF MACOS}
+        TRSP37147Workaround.Apply;
+        {$ENDIF}
+        {$IFDEF MACOS}
+        TRSP37829Workaround.Apply;
+        {$ENDIF}
+        {$IFDEF IOS}
+        TRSP37660Workaround.Apply;
+        {$ENDIF}
+      end;
+    end;
+    FCurrent.RegisterCanvasClasses;
+  end;
+  {$IFDEF DEBUG}
+  FGlobalUseSkiaInRegistration := GlobalUseSkia;
+  {$ENDIF}
+end;
+
+procedure TSkCanvasService.UnregisterCanvasClasses;
+begin
+  if Assigned(FCurrent) then
+  begin
+    if Assigned(FCanvasClass) then
+      FCanvasClass.Finalize;
+    FCurrent.UnregisterCanvasClasses;
   end;
 end;
 
@@ -2319,4 +2950,5 @@ initialization
   CanvasService := TSkCanvasService.Create(IFMXCanvasService(TPlatformServices.Current.GetPlatformService(IFMXCanvasService)));
   TPlatformServices.Current.RemovePlatformService(IFMXCanvasService);
   TPlatformServices.Current.AddPlatformService(IFMXCanvasService, CanvasService);
+{$ENDREGION}
 end.

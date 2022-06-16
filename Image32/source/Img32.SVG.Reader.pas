@@ -2,8 +2,8 @@ unit Img32.SVG.Reader;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  4.0                                                             *
-* Date      :  10 January 2022                                                 *
+* Version   :  4.2                                                             *
+* Date      :  30 May 2022                                                     *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2019-2022                                         *
 *                                                                              *
@@ -629,33 +629,17 @@ begin
       thisElement.fReader.currentColor := currentColor;
     drawDat.fillRule := fillRule;
     if (fillColor = clCurrent) then
-      {$IF Defined(MACOS) or Defined(MACOSX)}
-      drawDat.fillColor := SwapRedBlue(thisElement.fReader.currentColor)
-      {$ELSE}
       drawDat.fillColor := thisElement.fReader.currentColor
-      {$IFEND}
     else if (fillColor <> clInvalid) then
-      {$IF Defined(MACOS) or Defined(MACOSX)}
-      drawDat.fillColor := SwapRedBlue(fillColor);
-      {$ELSE}
       drawDat.fillColor := fillColor;
-      {$IFEND}
     if fillOpacity <> InvalidD then
       drawDat.fillOpacity := fillOpacity;
     if (fillEl <> '') then
       drawDat.fillEl := fillEl;
     if (strokeColor = clCurrent) then
-      {$IF Defined(MACOS) or Defined(MACOSX)}
-      drawDat.strokeColor := SwapRedBlue(thisElement.fReader.currentColor)
-      {$ELSE}
       drawDat.strokeColor := thisElement.fReader.currentColor
-      {$IFEND}
     else if strokeColor <> clInvalid then
-      {$IF Defined(MACOS) or Defined(MACOSX)}
-      drawDat.strokeColor := SwapRedBlue(strokeColor);
-      {$ELSE}
       drawDat.strokeColor := strokeColor;
-      {$IFEND}
     if strokeOpacity <> InvalidD then
       drawDat.strokeOpacity := strokeOpacity;
     if strokeWidth.IsValid then
