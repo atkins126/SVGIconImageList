@@ -2,7 +2,7 @@
 
 ## Four engines to render SVG (Delphi Image32, Delphi TSVG, SKIA4Delphi, Direct2D wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
 
-### Actual official version 3.9.0 (VCL+FMX)
+### Actual official version 3.9.2 (VCL+FMX)
 
 | Component | Description |
 | - | - |
@@ -50,9 +50,9 @@ As you can see, the four engines perform differently depending on the icons and 
 
 <sup>(1)</sup>Notice that Image32 and SKIA4Delphi are the only engines capable of rendering blur effect (that is always slow to calculate): this is the reason of "slow" performance to render Papirus icons that contains blur effect.
 
-### Available from Delphi XE3 to Delphi 11.1 (32bit and 64bit platforms)
+### Available from Delphi XE3 to Delphi 11 (32bit and 64bit platforms)
 
-![Delphi 11.0 Sydney Support](/Demo/Images/SupportingDelphi.jpg)
+![Delphi 11 Sydney Support](/Demo/Images/SupportingDelphi.jpg)
 
 Related links: https://www.embarcadero.com/ - https://learndelphi.org/
 
@@ -72,6 +72,8 @@ Related links: https://www.embarcadero.com/ - https://learndelphi.org/
 
 ### UTILITY
 
+The [SVG Viewer Demo](https://github.com/EtheaDev/SVGIconImageList/wiki/SVG-Viewer-(VCL)) is useful to check the rendering quality of the engines available.
+
 The [SVG Icon Explorer](https://github.com/EtheaDev/SVGIconImageList/wiki/SVGIconExplorer) utility is useful to explore and preview your svg image collections.
 
 You can use [SVG Shell Extensions](https://github.com/EtheaDev/SVGShellExtensions) if you want to see your icons directly into Windows Explorer or you want to edit them using a powerful SVG Text Editor.
@@ -81,12 +83,18 @@ You can use [SVG Shell Extensions](https://github.com/EtheaDev/SVGShellExtension
 Follow the [guide in Wiki section](https://github.com/EtheaDev/SVGIconImageList/wiki) to known how to use those components to modernize your Delphi VCL or FMX Windows applications scalable, colored and beautiful with few lines of code.
 
 ### RELEASE NOTES
-15 Jun 2022: version 3.9.0 (VCL+FMX)
-- Updated to Image32 4.2 library
-- Fixed Blueish tint on Android and MacOS-X
+
+28 Aug 2022: version 3.9.2 (VCL+FMX)
+- Fixed #240 TSVGGraphic.Assign
+- Updated to Image32 ver. 4.2 (28 July 2022)
+- Updated to Skia4Delphi 3.4.1 library
+- Fixed #241 Alignment from Source and Destination Items (FMX)
+
+21 Jun 2022: version 3.9.1 (VCL+FMX)
+- Added support for other Delphi versions (VCL): **D10 Seattle**
 
 08 May 2022: version 3.8.3 (VCL+FMX)
-- Updated to Skia4Delphi 3.4.0 llibrary
+- Updated to Skia4Delphi 3.4.0 library
 - SVGExplorer example moved under "Demo" folder
 
 10 Apr 2022: version 3.8.2 (VCL+FMX)
