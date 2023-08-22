@@ -3,7 +3,7 @@
 {       SVG Icon ImageList: An extended ImageList for Delphi/VCL               }
 {       to simplify use of Icons (resize, colors and more...)                  }
 {                                                                              }
-{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2023 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors:                                                          }
 {         Nicola Tambascia, Vincent Parrett                                    }
@@ -126,10 +126,10 @@ implementation
 {$R *.dfm}
 
 uses
-  PasSVGFactory
-  , Image32SVGFactory
-  , SkiaSVGFactory
-  , D2DSVGFactory
+  Image32SVGFactory
+//  , PasSVGFactory
+//  , SkiaSVGFactory
+//  , D2DSVGFactory
 
   , Themes
   {$IFDEF DXE3+}

@@ -90,10 +90,7 @@ Uses
   {$MESSAGE FATAL 'You must define only one engine (Image32_SVGEngine or Skia_Engine or Delphi_SVGEngine) into SVGIconImageList.inc)'}
 {$ENDIF}
 
-{$IF DEFINED(Delphi_SVGEngine)}
-  {$MESSAGE HINT 'Use Delphi native (TSVG) SVG-Engine for SVGIconImageList'}
-  PasSVGFactory
-{$ELSEIF DEFINED(Image32_SVGEngine)}
+{$IF DEFINED(Image32_SVGEngine)}
   {$MESSAGE HINT 'Use Delphi native Image32 SVG-Engine for SVGIconImageList'}
   Image32SVGFactory
 {$ELSEIF DEFINED(Skia_SVGEngine)}
@@ -118,9 +115,7 @@ begin
       FGlobalSVGFactory := GetD2DSVGFactory
     else
     {$ENDIF}
-    {$IF DEFINED(Delphi_SVGEngine)}
-      FGlobalSVGFactory := GetPasSVGFactory;
-    {$ELSEIF DEFINED(Image32_SVGEngine)}
+    {$IF DEFINED(Image32_SVGEngine)}
       FGlobalSVGFactory := GetImage32SVGFactory;
     {$ELSEIF DEFINED(Skia_SVGEngine)}
       FGlobalSVGFactory := GetSkiaSVGFactory;
@@ -145,6 +140,8 @@ begin
     Result := 'Delphi TSVG Engine'
   {$ELSEIF DEFINED(Image32_SVGEngine)}
     Result := 'Delphi Image32 Engine'
+  {$ELSEIF DEFINED(Skia_SVGEngine)}
+    Result := 'Skia4delphi Engine'
   {$ENDIF}
 end;
 

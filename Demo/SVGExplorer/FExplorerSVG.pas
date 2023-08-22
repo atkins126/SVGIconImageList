@@ -3,7 +3,7 @@
 {       SVG Explorer: Utility to explore SVG Icons on disk                     }
 {       to simplify use of Icons (resize, colors and more...)                  }
 {                                                                              }
-{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2023 (Ethea S.r.l.)                                 }
 {       Author: Nicola Tambascia                                               }
 {       Contributors:                                                          }
 {         Carlo Barazzetta                                                     }
@@ -43,12 +43,12 @@ resourcestring
   LOAD_IMAGES_TIME = 'Load %d Images in %d msec.';
 
 type
-  TSVGFactory = (svgImage32, svgSkia, svgNativeTSVG, svgDirect2D);
+  TSVGFactory = (svgImage32, svgSkia, svgDirect2D);
   //TSVGFactory = (svgImage32, svgSkia);
 const
   ASVGFactoryNames: Array[TSVGFactory] of string =
     //('Native Image32', 'Skia4Delphi');
-    ('Native Image32', 'Skia4Delphi', 'Native TSVG', 'Direct2D');
+    ('Native Image32', 'Skia4Delphi', 'Direct2D');
 
 type
   TfmExplorerSVG = class(TForm)
@@ -123,7 +123,6 @@ uses
   SVGInterfaces
   , Image32SVGFactory
   , D2DSVGFactory
-  , PasSVGFactory
   , SkiaSVGFactory
   , SVGIconUtils
   , UITypes;
@@ -184,8 +183,6 @@ end;
 procedure TfmExplorerSVG.SetFactory(AFactory: TSVGFactory);
 begin
   case AFactory of
-    svgNativeTSVG:
-      SetGlobalSvgFactory(GetPasSVGFactory);
     svgDirect2D:
       SetGlobalSvgFactory(GetD2DSVGFactory);
     svgImage32:

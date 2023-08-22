@@ -1,9 +1,9 @@
 {******************************************************************************}
 {                                                                              }
-{       Icon SVG ImageList: An extended ImageList for Delphi/VCL               }
+{       SVGIconImageList: An extended ImageList for Delphi/VCL                 }
 {       to simplify use of SVG Icons (resize, opacity and more...)             }
 {                                                                              }
-{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2023 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -47,6 +47,16 @@ uses
   , Vcl.Imaging.pngimage
   , ComCtrls;
 
+Type
+  TPngExportSize = (es16, es32, es48, es64, es96, es128, es192, es256, esCustom);
+  TPngExportSizes = Set of TPngExportSize;
+
+  TExportToPngEvent = procedure (const ASizes: TPngExportSizes; const SVGText: string;
+    const AFolder, AFormat: string; ACustomSize: Integer) of Object;
+
+const
+  AllPngExportSizes = [es16, es32, es48, es64, es96, es128, es192, es256, esCustom];
+
 function UpdateSVGIconListView(const AListView: TListView;
   const ACategory: string = '';
   const AIncludeIndex: Boolean = True): Integer;
@@ -63,7 +73,7 @@ uses
   System.SysUtils
   , System.Types
   , Vcl.Themes
-  , SVGIconImageCOllection
+  , SVGIconImageCollection
   {$IFDEF D10_3}
   , VirtualImageList
   {$ENDIF}
@@ -75,6 +85,7 @@ type
   TRGBA = packed record B, G, R, A: byte end;
   TRGBAArray = array[0..0] of TRGBA;
 
+{$R-}
 function PNG4TransparentBitMap(aBitmap: TBitmap): TPNGImage;
 var
   X, Y: integer;

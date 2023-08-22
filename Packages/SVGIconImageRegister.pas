@@ -2,7 +2,7 @@
 {                                                                              }
 {       SVGIconImage Registration for Components and Editors                   }
 {                                                                              }
-{       Copyright (c) 2019-2022 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2023 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -27,6 +27,8 @@ unit SVGIconImageRegister;
 
 interface
 
+{$INCLUDE ..\Source\SVGIconImageList.inc}
+
 uses
   Classes
   , DesignIntf
@@ -44,13 +46,14 @@ type
     procedure ExecuteVerb(Index: Integer); override;
   end;
 
+  {$IFNDEF D10_3+}
   TSVGIconVirtualImageListCompEditor = class(TComponentEditor)
   public
     function GetVerbCount: Integer; override;
     function GetVerb(Index: Integer): string; override;
     procedure ExecuteVerb(Index: Integer); override;
   end;
-
+  {$ENDIF}
 
   TSVGIconImageCollectionCompEditor = class(TComponentEditor)
   public
@@ -245,15 +248,17 @@ begin
      TSVGIconImageCollection]);
 
   RegisterComponentEditor(TSVGIconImageList, TSVGIconImageListCompEditor);
+  {$IFNDEF D10_3+}
   RegisterComponentEditor(TSVGIconVirtualImageList, TSVGIconVirtualImageListCompEditor);
+  {$ENDIF}
   RegisterComponentEditor(TSVGIconImageCollection, TSVGIconImageCollectionCompEditor);
   RegisterComponentEditor(TSVGIconImage, TSVGIconImageCompEditor);
   RegisterPropertyEditor(TypeInfo(TSVGIconItems), TSVGIconImageList, 'SVGIconItems', TSVGIconImageListProperty);
   RegisterPropertyEditor(TypeInfo(TSVGIconItems), TSVGIconImageCollection, 'SVGIconItems', TSVGIconCollectionListProperty);
   RegisterPropertyEditor(TypeInfo(string), TSVGIconItem, 'SVGText', TSVGTextProperty);
   RegisterPropertyEditor(TypeInfo(string), TSVGIconImage, 'SVGText', TSVGTextProperty);
-  RegisterPropertyEditor(TypeInfo(System.UITypes.TImageIndex), TSVGIconImage, 'ImageIndex',
-    TSVGImageIndexPropertyEditor);
+  RegisterPropertyEditor(TypeInfo(System.UITypes.TImageIndex), TSVGIconImage, 'ImageIndex', TSVGImageIndexPropertyEditor);
+  //RegisterPropertyEditor(TypeInfo(System.UITypes.TImageName), TSVGIconImage, 'ImageName', TSVGImageIndexPropertyEditor);
 end;
 
 { TSVGIconImageCollectionCompEditor }
@@ -289,6 +294,7 @@ begin
   Result := 2;
 end;
 
+{$IFNDEF D10_3+}
 { TSVGIconVirtualImageListCompEditor }
 
 procedure TSVGIconVirtualImageListCompEditor.ExecuteVerb(Index: Integer);
@@ -320,6 +326,7 @@ function TSVGIconVirtualImageListCompEditor.GetVerbCount: Integer;
 begin
   result := 2;
 end;
+{$ENDIF}
 
 { TSVGIconImageCompEditor }
 
