@@ -9,8 +9,7 @@ unit SkiaSVGFactory;
 interface
 
 Uses
-  SVGInterfaces
-  , Vcl.Skia;
+  SVGInterfaces;
 
 // Factory Methods
 function GetSkiaSVGFactory: ISVGFactory;
@@ -31,6 +30,7 @@ Uses
   System.Classes,
   System.Math.Vectors,
   //Skia engine
+  Vcl.Skia,
   System.Skia;
 
 type
@@ -320,8 +320,8 @@ var
       FSvg.OverrideColor := Default(TAlphaColor);
     end;
 
-    //Render SVG
-    FSvg.Render(LSurface.Canvas, LDestRect, FOpacity);
+    //Render SVG with Opacity = 1 because the Opacity is used into AlphaBlend
+    FSvg.Render(LSurface.Canvas, LDestRect, 1);
     FDrawCached := True;
   end;
 

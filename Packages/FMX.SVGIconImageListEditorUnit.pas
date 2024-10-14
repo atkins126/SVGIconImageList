@@ -3,7 +3,7 @@
 {       SVG Icon ImageList: An extended ImageList for Delphi/VLC+FMX           }
 {       to simplify use of Icons (resize, opacity and more...)                 }
 {                                                                              }
-{       Copyright (c) 2019-2023 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2024 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Volodymyr B.                                             }
 {                                                                              }
@@ -150,8 +150,11 @@ uses
   , Winapi.Windows
   , Winapi.shellApi
   , Xml.XMLDoc
+  {$IFDEF Image32_SVGEngine}
+  , Img32.SVG.Core
+  {$ENDIF}
   , System.Math
-  , Img32.SVG.Core;
+  ;
 
 var
   SavedBounds: TRect = (Left: 0; Top: 0; Right: 0; Bottom: 0);
@@ -249,7 +252,7 @@ begin
       SavedBounds := Bounds;
       ItemPanelHeight := ItemPanel.Height;
     finally
-      DisposeOf;
+      Free;
     end;
   end;
 end;

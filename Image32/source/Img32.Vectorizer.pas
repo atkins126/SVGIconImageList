@@ -2,8 +2,8 @@ unit Img32.Vectorizer;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  4.4                                                             *
-* Date      :  1 May 2023                                                      *
+* Version   :  4.6                                                             *
+* Date      :  18 September 2024                                               *
 * Website   :  http://www.angusj.com                                           *
 * Copyright :  Angus Johnson 2019-2023                                         *
 * Purpose   :  Converts raster images to vector paths                          *
@@ -15,8 +15,9 @@ interface
 uses
   Img32;
 
-function Vectorize(img: TImage32; compareColor: TColor32;
-  compareFunc: TCompareFunction; colorTolerance: Integer): TPathsD;
+function Vectorize(img: TImage32;
+  compareColor: TColor32; compareFunc: TCompareFunction;
+  colorTolerance: Integer; simplifyTolerance: double = 0.25): TPathsD;
 
 implementation
 
@@ -92,7 +93,7 @@ var
   i, len: integer;
 begin
   len := GetVertexCount(pt);
-  SetLength(Result, len);
+  NewPointDArray(Result, len, True);
   for i := 0 to len -1 do
   begin
     Result[i] := PointD(pt.X, pt.Y);
@@ -398,8 +399,9 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function Vectorize(img: TImage32; compareColor: TColor32;
-  compareFunc: TCompareFunction; colorTolerance: Integer): TPathsD;
+function Vectorize(img: TImage32;
+  compareColor: TColor32; compareFunc: TCompareFunction;
+  colorTolerance: Integer; simplifyTolerance: double = 0.25): TPathsD;
 var
   ba: TArrayOfByte;
 begin
@@ -410,8 +412,7 @@ begin
   finally
     free;
   end;
-  Result := SimplifyPathsEx(Result);
-  //Result := SimplifyPaths(Result, 0.25);
+  Result := SimplifyPathsEx(Result, simplifyTolerance);
 end;
 //------------------------------------------------------------------------------
 

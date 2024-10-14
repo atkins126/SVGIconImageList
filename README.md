@@ -2,7 +2,7 @@
 
 ## Three engines to render SVG (Delphi Image32, Skia4Delphi, Direct2D wrapper) and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)
 
-### Actual official version 4.0.0 (VCL+FMX)
+### Actual official version 4.2.0 (VCL+FMX)
 
 | Component | Description |
 | - | - |
@@ -85,9 +85,65 @@ You can use [SVG Shell Extensions](https://github.com/EtheaDev/SVGShellExtension
 
 Follow the [guide in Wiki section](https://github.com/EtheaDev/SVGIconImageList/wiki) to known how to use those components to modernize your Delphi VCL or FMX Windows applications scalable, colored and beautiful with few lines of code.
 
-### RELEASE NOTES
+### Other similar library
 
-21 Aug 2023: version 4.0.0 (VCL+FMX)
+A similar project made by Ethea for Icon Fonts: [https://github.com/EtheaDev/IconFontsImageList](https://github.com/EtheaDev/IconFontsImageList)
+
+### RELEASE NOTES
+12 Oct 2024: versione 4.2.0 (VCL+FMX)
+- Updated to Image32 4.6 Released 12 Oct 2024 to fix some drawing issue
+- Added components info into About and Splash Screen
+
+14 Sep 2024: version 4.1.9 (VCL+FMX)
+- Aligned to Image32 4.5 Version of 14 September 2024
+- Fixed Range Error rendering some icons (Image32 engine)
+- Fixed Rename Icon in FireMonkey ImageList Editor
+- Aggiornamento packages Delphi 12.2
+
+27 Aug 2024: version 4.1.8 (VCL+FMX)
+- Aligned to Image32 4.5 Version of 18 August 2024
+- Fixed rendering with Opacity for Skia4Delphi and D2D Engines
+
+13 Aug 2024: version 4.1.7 (VCL+FMX)
+- Updated packages for compilation with Skia4Delphi (defined by SVGIconImageList.inc)
+- Fixed uses for skia unit
+- Aligned to Image32 4.5 Version of 11 August 2024
+
+18 Jul 2024: version 4.1.6 (VCL+FMX)
+- Aligned to Image32 4.5 Version of 17 July 2024
+- Fixed color of icons in Android
+- Added define to use old OpenPicture Dialog into component editor.
+
+22 May 2024: version 4.1.5 (VCL+FMX)
+- Fixed TSVGIconImageListBase.Assign
+- Fixed TSVGIconImageCollection registration for FMX projects
+- Aligned to Image32 version of 14 May 2024
+
+05 May 2024: version 4.1.4 (VCL+FMX)
+- Aligned To latest Image32 ver. 4.4
+
+19 Apr 2024: version 4.1.3 (VCL+FMX)
+- Aligned To latest Image32
+- Fixed compilation with MacOSX
+- Added support for Delphi 12.1
+
+08 Jan 2024: version 4.1.2 (VCL+FMX)
+- Aligned To latest Image32
+- Added copy SVG to Clipboard into "Export to png" dialog
+- Updated Copyrights
+
+09 Nov 2023: version 4.1.1 (VCL+FMX)
+- Aligned To Skia4Delphi 6.0.0
+- Added FMX Components to all platform
+- Fixed Demos for Delphi 12
+- Added SvgDisableEngineHint option
+
+03 Sep 2023: version 4.1.0 (VCL+FMX)
+- Aligned Image32 Library released on 03/09/2023
+- Fixed demo (removed "obsolete" SVGColor uses)
+- Added support for Delphi 12.1
+
+24 Aug 2023: version 4.0.0 (VCL+FMX)
 - Removed old "native" engine TSVG
 - Updated to Skia4Delphi ver. 6.0.0
 - TSVGIconVirtualImageList inherits from TVirtualImageList (from D10.3 to actual version).
@@ -118,7 +174,7 @@ Follow the [guide in Wiki section](https://github.com/EtheaDev/SVGIconImageList/
 - Fixed #241 Alignment from Source and Destination Items (FMX)
 
 21 Jun 2022: version 3.9.1 (VCL+FMX)
-- Added support for other Delphi versions (VCL): **D10 Seattle**
+- Added support for other Delphi versions (VCL): D10 Seattle
 
 08 May 2022: version 3.8.3 (VCL+FMX)
 - Updated to Skia4Delphi 3.4.0 library
@@ -322,43 +378,41 @@ Take care of TSVGIconVirtualImageList.Collection renamed to SVGIconVirtualImageL
 
 28 May 2020: version 1.2 (VCL+FMX)
 
-- Complete support of **Delphi 10.4**
-- Added support for other Delphi versions (VCL): **DXE6**, **DXE8**, **D10.1**
+- Complete support of Delphi 10.4
+- Added support for other Delphi versions (VCL): DXE6, DXE8, D10.1
 - Added position memory of component editor
 - Fixed Issue: Icon Editor not keeping added icons
 - Fixed Issue: SVG with exponent notation does not parse correctly and affects image display
 
 25 May 2020: version 1.1 (VCL+FMX)
 
-- Added the component **TSVGIconImageListFMX** with advanced component editor.
-- Added the component **TSVGIconImageFMX** to show SVG into a TImage.
+- Added the component TSVGIconImageListFMX with advanced component editor.
+- Added the component TSVGIconImageFMX to show SVG into a TImage.
 - Demos to show how they works.
 - Very high performance for building hundreds of icons.
 
 24 May 2020: first version 1.0 (VCL)
 
-- Added the component **TSVGIconImageList** with advanced component editor.
-- Added the component **TSVGIconImage** to show SVG into a TImage.
+- Added the component TSVGIconImageList with advanced component editor.
+- Added the component TSVGIconImage to show SVG into a TImage.
 - Demos to show how they works.
 - Very high performance for building hundreds of icons.
 - Support from Delphi 10.2 to 10.4 Sydney (other Delphi versions coming soon)
 
 ### THANKS TO
 
-These components use the followin libraries:
+These components uses the followin libraries:
 
-- SVG library by Martin Walter (Original version (c) 2005, 2008) with license:  
-  Use of this file is permitted for commercial and non-commercial. Use, as long as the author is credited.  
-  home page: <http://www.mwcs.de>  email: martin.walter@mwcs.de  
-  This library is included in the svg folder of this project.
-- Image32 library by [Angus Johnson](http://www.angusj.com/delphi/image32/Docs/_Body.htm)
+- Image32 library by [Angus Johnson](https://angusj.com/image32/Docs/_Body.htm)
+
   These files are included in the Image32/Source and Image32/source/Image32_SVG folders
-- Skia4Delphi Library by [the autohors](https://github.com/Skia4Delphi/Skia4Delphi)
+
+  Copyright [Boost Software License Version 1](https://www.boost.org/LICENSE_1_0.txt)
+
+- Skia4Delphi Library by [the autohors](https://skia4delphi.org/)
+
   These files are included in the Skia4Delphi/Source folder
 
+  Copyright [MIT-License](https://github.com/skia4delphi/skia4delphi?tab=MIT-1-ov-file)
+
 Many thanks to **Vincent Parrett** and **Kiriakos Vlahos** for their great contibution.
-
-**TSVGIconImageList** and **TSVGIconImage** are similar to **TSVGImageList** and **TSVGImage** included into project: [https://github.com/ekot1/DelphiSVG.git](https://github.com/ekot1/DelphiSVG.git)
-but those versions are more efficient in performances, with many fixes added, plus some features like SVGText property, store icons in Text format into dfm, GrayScale and FixedColor, VirtualImageList support and more...
-
-**TSVGIconImageListFMX** and **TSVGIconImageFMX** are similar to **TIconFontsImageListFMX** and **TIconFontsImage** included into similar project made by Ethea for Icon Fonts: [https://github.com/EtheaDev/IconFontsImageList](https://github.com/EtheaDev/IconFontsImageList)

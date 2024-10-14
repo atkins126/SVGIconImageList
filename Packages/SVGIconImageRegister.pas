@@ -2,7 +2,7 @@
 {                                                                              }
 {       SVGIconImage Registration for Components and Editors                   }
 {                                                                              }
-{       Copyright (c) 2019-2023 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2024 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -28,15 +28,17 @@ unit SVGIconImageRegister;
 interface
 
 {$INCLUDE ..\Source\SVGIconImageList.inc}
+{$R ..\SvgIconImageListSplash.res}
 
 uses
-  Classes
+  System.Classes
   , DesignIntf
   , DesignEditors
   , VCLEditors
   , Vcl.ImgList
+  , System.Types
   , Vcl.Graphics
-  , System.Types;
+  ;
 
 type
   TSVGIconImageListCompEditor = class(TComponentEditor)
@@ -111,7 +113,6 @@ implementation
 
 uses
   SysUtils
-  , ToolsAPI
   , BrandingAPI
   , Vcl.Themes
   , Vcl.Forms
@@ -119,16 +120,90 @@ uses
   , System.UITypes
   , Winapi.ShellApi
   , Winapi.Windows
+  , ToolsAPI
   , SVGIconImage
   , SVGIconImageListBase
   , SVGIconImageList
   , SVGIconItems
+  {$IFDEF Image32_SVGEngine}
   , Img32.Panels
+  {$ENDIF}
   , SVGIconVirtualImageList
   , SVGIconImageCollection
   , SVGIconImageListEditorUnit
-  , SVGTextPropertyEditorUnit;
+  , SVGTextPropertyEditorUnit
+  , PngImage;
 
+const
+  ABOUT_RES_NAME = 'SVGICONSPLASH48PNG';
+  SPLASH_RES_NAME = 'SVGICONSPLASH48PNG';
+  RsAboutTitle = 'Ethea SvgIconImageList';
+  RsAboutDescription = 'Ethea - SvgIconImageList Components - https://github.com/EtheaDev/SVGIconImageList/' + sLineBreak +
+    'Three engines to render SVG Icons and four components to simplify use of SVG images (resize, fixedcolor, grayscale...)';
+  RsAboutLicense = 'Apache 2.0 (Free/Opensource)';
+var
+  AboutBoxServices: IOTAAboutBoxServices = nil;
+  AboutBoxIndex: Integer;
+
+function CreateBitmapFromPngRes(const AResName: string): Vcl.Graphics.TBitmap;
+var
+  LPngImage: TPngImage;
+  LResStream: TResourceStream;
+begin
+  LPngImage := nil;
+  try
+    Result := Vcl.Graphics.TBitmap.Create;
+    LPngImage := TPngImage.Create;
+    LResStream := TResourceStream.Create(HInstance, AResName, RT_RCDATA);
+    try
+      LPngImage.LoadFromStream(LResStream);
+      Result.Assign(LPngImage);
+    finally
+      LResStream.Free;
+    end;
+  finally
+    LPngImage.Free;
+  end;
+end;
+
+procedure RegisterAboutBox;
+var
+  LBitmap: Vcl.Graphics.TBitmap;
+begin
+  Supports(BorlandIDEServices,IOTAAboutBoxServices, AboutBoxServices);
+  LBitmap := CreateBitmapFromPngRes(ABOUT_RES_NAME);
+  try
+    AboutBoxIndex := AboutBoxServices.AddPluginInfo(
+      RsAboutTitle+' '+SVGIconImageListVersion,
+      RsAboutDescription, LBitmap.Handle, False, RsAboutLicense);
+  finally
+    LBitmap.Free;
+  end;
+end;
+
+procedure UnregisterAboutBox;
+begin
+  if (AboutBoxIndex <> 0) and Assigned(AboutBoxServices) then
+  begin
+    AboutBoxServices.RemovePluginInfo(AboutBoxIndex);
+    AboutBoxIndex := 0;
+    AboutBoxServices := nil;
+  end;
+end;
+
+procedure RegisterWithSplashScreen;
+var
+  LBitmap: Vcl.Graphics.TBitmap;
+begin
+  LBitmap := CreateBitmapFromPngRes(SPLASH_RES_NAME);
+  try
+    SplashScreenServices.AddPluginBitmap(
+      RsAboutTitle+' '+SVGIconImageListVersion,
+      LBitmap.Handle, False, RsAboutLicense, '');
+  finally
+    LBitmap.Free;
+  end;
+end;
 
 { TSVGIconImageListCompEditor }
 
@@ -241,6 +316,8 @@ end;
 
 procedure Register;
 begin
+  RegisterWithSplashScreen;
+
   RegisterComponents('Ethea',
     [TSVGIconImage,
      TSVGIconImageList,
@@ -433,5 +510,11 @@ begin
   if Assigned(ImgList) then
     Inc(AWidth, ImgList.Width);
 end;
+
+initialization
+  RegisterAboutBox;
+
+finalization
+  UnRegisterAboutBox;
 
 end.

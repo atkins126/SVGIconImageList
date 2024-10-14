@@ -2,13 +2,14 @@
     <PropertyGroup>
         <ProjectGuid>{B5E8B9F1-C42D-4AFC-AE08-193731C6515B}</ProjectGuid>
         <MainSource>SVGIconImageList.dpk</MainSource>
-        <ProjectVersion>20.0</ProjectVersion>
+        <ProjectVersion>20.2</ProjectVersion>
         <FrameworkType>VCL</FrameworkType>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Release</Config>
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
         <TargetedPlatforms>3</TargetedPlatforms>
         <AppType>Package</AppType>
+        <ProjectName Condition="'$(ProjectName)'==''">SVGIconImageList</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -20,6 +21,11 @@
     </PropertyGroup>
     <PropertyGroup Condition="('$(Platform)'=='Win64' and '$(Base)'=='true') or '$(Base_Win64)'!=''">
         <Base_Win64>true</Base_Win64>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Win64x' and '$(Base)'=='true') or '$(Base_Win64x)'!=''">
+        <Base_Win64x>true</Base_Win64x>
         <CfgParent>Base</CfgParent>
         <Base>true</Base>
     </PropertyGroup>
@@ -49,7 +55,7 @@
         <DCC_K>false</DCC_K>
         <GenDll>true</GenDll>
         <GenPackage>true</GenPackage>
-        <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;System;Xml;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
         <DCC_CBuilderOutput>All</DCC_CBuilderOutput>
         <SanitizedProjectName>SVGIconImageList</SanitizedProjectName>
         <DCC_Description>Ethea SVGIconImageList VCL components</DCC_Description>
@@ -57,13 +63,15 @@
         <DllSuffix>$(Auto)</DllSuffix>
         <DCC_UnitSearchPath>..\..\Image32\Source;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <RuntimeOnlyPackage>true</RuntimeOnlyPackage>
+        <VerInfo_Locale>1033</VerInfo_Locale>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
-        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
         <BT_BuildType>Debug</BT_BuildType>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win64)'!=''">
-        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;$(DCC_Namespace)</DCC_Namespace>
+        <BT_BuildType>Debug</BT_BuildType>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base_Win64x)'!=''">
         <BT_BuildType>Debug</BT_BuildType>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Cfg_1)'!=''">
@@ -89,7 +97,6 @@
         </DelphiCompile>
         <DCCReference Include="vcl.dcp"/>
         <DCCReference Include="VclSmp.dcp"/>
-        <DCCReference Include="SVGImage32Package.dcp"/>
         <DCCReference Include="vclwinx.dcp"/>
         <DCCReference Include="..\..\Source\SVGIconImage.pas"/>
         <DCCReference Include="..\..\Source\SVGIconImageList.pas"/>
@@ -98,9 +105,6 @@
         <DCCReference Include="..\..\Source\SVGIconItems.pas"/>
         <DCCReference Include="..\..\Source\SVGIconVirtualImageList.pas"/>
         <DCCReference Include="..\..\Source\SVGIconImageListBase.pas"/>
-        <DCCReference Include="..\..\Source\D2DSVGFactory.pas"/>
-        <DCCReference Include="..\..\Source\Winapi.D2DMissing.pas"/>
-        <DCCReference Include="..\..\Source\Image32SVGFactory.pas"/>
         <DCCReference Include="..\..\Source\SVGInterfaces.pas"/>
         <DCCReference Include="..\..\Source\dlgExportPNG.pas">
             <Form>ExportToPNGDialog</Form>
@@ -126,10 +130,13 @@
                     <Source Name="MainSource">SVGIconImageList.dpk</Source>
                 </Source>
                 <Excluded_Packages/>
+                <WelcomePageFile Path="..\..\README.htm"/>
+                <WelcomePageFolder/>
             </Delphi.Personality>
             <Platforms>
                 <Platform value="Win32">True</Platform>
                 <Platform value="Win64">True</Platform>
+                <Platform value="Win64x">False</Platform>
             </Platforms>
         </BorlandProject>
         <ProjectFileVersion>12</ProjectFileVersion>

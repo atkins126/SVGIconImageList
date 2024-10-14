@@ -2,7 +2,7 @@
 {                                                                              }
 {       SVGIconImageList Component Editor                                      }
 {                                                                              }
-{       Copyright (c) 2019-2023 (Ethea S.r.l.)                                 }
+{       Copyright (c) 2019-2024 (Ethea S.r.l.)                                 }
 {       Author: Carlo Barazzetta                                               }
 {       Contributors: Vincent Parrett, Kiriakos Vlahos                         }
 {                                                                              }
@@ -1194,8 +1194,12 @@ end;
 
 function TOpenPictureDialogSvg.Execute(ParentWnd: HWND): Boolean;
 begin
+  {$IFDEF OldPictureDialog}
   Template := 'DLGTEMPLATE';
   Result := DoExecute(@GetOpenFileName, ParentWnd);
+  {$ELSE}
+  Result := inherited Execute(ParentWnd);
+  {$ENDIF}
 end;
 
 procedure TOpenPictureDialogSvg.DoSelectionChange;

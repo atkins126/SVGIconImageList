@@ -2,10 +2,10 @@ unit Img32.Panels;
 
 (*******************************************************************************
 * Author    :  Angus Johnson                                                   *
-* Version   :  4.4                                                             *
-* Date      :  26 March 2023                                                   *
+* Version   :  4.6                                                             *
+* Date      :  18 September 2024                                               *
 * Website   :  http://www.angusj.com                                           *
-* Copyright :  Angus Johnson 2019-2021                                         *
+* Copyright :  Angus Johnson 2019-2024                                         *
 * Purpose   :  Component that displays images on a TPanel descendant           *
 * License   :  http://www.boost.org/LICENSE_1_0.txt                            *
 *******************************************************************************)
@@ -13,9 +13,9 @@ unit Img32.Panels;
 interface
 
 uses
-  SysUtils, Classes, Windows, Messages, Types, Graphics,
+  Windows, SysUtils, Classes, Messages, Types, Graphics,
   Controls, Forms, ExtCtrls, Themes, uxTheme, Math, ShellApi, ClipBrd,
-  Img32, Img32.Extra;
+  Img32;
 
 {$I Img32.inc}
 
@@ -206,6 +206,9 @@ procedure Register;
 
 implementation
 
+uses
+  Img32.Extra, Img32.Vector;
+
 procedure Register;
 begin
   RegisterComponents('Image32 Panels', [TImage32Panel]);
@@ -322,13 +325,6 @@ begin
 end;
 //------------------------------------------------------------------------------
 
-function OffsetPoint(const pt: TPoint; dx, dy: integer): TPoint;
-begin
-  Result.X := pt.X + dx;
-  Result.Y := pt.Y + dy;
-end;
-//------------------------------------------------------------------------------
-
 function LeftMouseBtnDown: Boolean;
 begin
   Result := (GetKeyState(VK_LBUTTON) shr 8 > 0);
@@ -419,7 +415,7 @@ end;
 function TBaseImgPanel.GetDstOffset: TPoint;
 begin
   if not fAutoCenter then
-    Result := Point(0,0)
+    Result := Types.Point(0,0)
   else
     with GetInnerClientRect do
     begin
@@ -488,7 +484,7 @@ var
   h,w: integer;
 begin
   if IsEmpty then Exit;
-  fScale := 1;
+  //fScale := 1;
   fScrollbarHorz.srcOffset := 0;
   fScrollbarVert.srcOffset := 0;
   rec := GetInnerClientRect;
@@ -518,7 +514,7 @@ begin
   q := 1 - 1/scaleDelta;
   marg := GetInnerMargin;
   pt1 := ClientToImage(pt);
-  pt2 := ClientToImage(Point(marg, marg));
+  pt2 := ClientToImage(Types.Point(marg, marg));
   SetScale(fScale * scaleDelta);
   with fScrollbarHorz do
     inc(srcOffset, Round((pt1.X - pt2.X) * q));
@@ -723,7 +719,7 @@ begin
   innerW := ClientWidth - marg*2;
   innerH := ClientHeight - marg*2;
   pt1 := imagePt;
-  pt2 := ClientToImage(Point(marg + innerW div 2, marg + innerH div 2));
+  pt2 := ClientToImage(Types.Point(marg + innerW div 2, marg + innerH div 2));
   with fScrollbarHorz do
   begin
     q := (pt1.X - pt2.X);
@@ -778,7 +774,7 @@ var
   inDrawRegion: Boolean;
 begin
   rec := GetInnerClientRect;
-  inDrawRegion := PtInRect(rec, Point(X,Y));
+  inDrawRegion := Windows.PtInRect(rec, Types.Point(X,Y));
   if inDrawRegion and
     not (fScrollbarHorz.MouseDown or fScrollbarVert.MouseDown) then
   begin
@@ -913,7 +909,7 @@ procedure TBaseImgPanel.Paint;
   var
     tImage : TImage32;
   begin
-    tImage := TImage32.Create(rec.Width, rec.Height);
+    tImage := TImage32.Create(RectWidth(rec), RectHeight(rec));
     try
       HatchBackground(timage,
         fBkgChBrdColor1, fBkgChBrdColor2, DpiAware(fBkgChBrdSize));
@@ -931,8 +927,8 @@ procedure TBaseImgPanel.Paint;
     Canvas.Pen.Width := 1;
     while width > 0 do
     begin
-      tr := Point(rec.Right, rec.Top);
-      bl := Point(rec.Left, rec.Bottom);
+      tr := Types.Point(rec.Right, rec.Top);
+      bl := Types.Point(rec.Left, rec.Bottom);
       Canvas.Pen.Color := tlColor;
       Canvas.PolyLine([bl, rec.TopLeft, tr]);
       Canvas.Pen.Color := brColor;
@@ -966,7 +962,7 @@ begin
   dpiAwareBW := DpiAware(BorderWidth);
   dstRec := innerRec;
   srcRec := dstRec;
-  OffsetRect(srcRec, -marg, -marg);
+  TranslateRect(srcRec, -marg, -marg);
   ScaleRect(srcRec, 1/fScale);
   //if the scaled drawing is smaller than InnerClientRect then center it
   pt := GetDstOffset;
@@ -993,7 +989,7 @@ begin
     fScrollbarVert.srcOffset := Round(fScrollbarVert.maxSrcOffset);
   if fScrollbarHorz.srcOffset > fScrollbarHorz.maxSrcOffset then
     fScrollbarHorz.srcOffset := Round(fScrollbarHorz.maxSrcOffset);
-  OffsetRect(srcRec, fScrollbarHorz.srcOffset, fScrollbarVert.srcOffset);
+  TranslateRect(srcRec, fScrollbarHorz.srcOffset, fScrollbarVert.srcOffset);
   //paint innerRec background
   backgroundPainted := ParentBackground and
   {$IFDEF STYLESERVICES}
@@ -1199,7 +1195,7 @@ begin
         begin
           if not fAllowZoom then Exit;
           //zoom in and out with CTRL+UP and CTRL+DOWN respectively
-          midPoint := Point(ClientWidth div 2, ClientHeight div 2);
+          midPoint := Types.Point(ClientWidth div 2, ClientHeight div 2);
           case Message.CharCode of
             VK_UP: ScaleAtPoint(1.1, midPoint);
             VK_DOWN: ScaleAtPoint(0.9, midPoint);
